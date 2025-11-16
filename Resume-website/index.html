@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>David Lucas | Portfolio</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="home">
+  <!-- Subtle Background -->
+  <div class="background-gradient"></div>
+  <div class="subtle-stars"></div>
+
+  <!-- Main Container -->
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <h1 class="title">David Lucas</h1>
+        <p class="tagline">Explorer of Ideas | Builder of Worlds</p>
+      </div>
+    </header>
+
+    <!-- Hero Section with Robotic Hand -->
+    <section class="hero">
+      <div class="hero-content">
+        <a href="deep-dive.html" class="centerpiece-link" id="deepDiveLink">
+          <div class="hand-universe-container">
+            <img src="assets/hand-universe.png" alt="Robotic hand holding the universe" class="hand-universe" />
+            <div class="universe-glow"></div>
+          </div>
+        </a>
+        <p class="hero-text">Touch to explore</p>
+      </div>
+    </section>
+
+    <!-- About Section -->
+    <section class="about">
+      <div class="about-content">
+        <h2>About</h2>
+        <p>
+          Hello, I'm David—Dave for short. I'm a dreamer at heart, always lost in thoughts about the endless possibilities life has to offer. I'm deeply curious and love learning about just about everything. Exploration drives me, whether it's discovering different parts of the world, diving into a good book, or building something from scratch. I find joy in the little things—assembling and creating with my hands, putting together puzzles both literal and figurative. Life, for me, is a journey of discovery, growth, and adventure. Welcome to my corner of the universe.
+        </p>
+      </div>
+    </section>
+
+    <!-- Future Sections Placeholders -->
+    <section class="future-sections">
+      <div class="section-placeholder">
+        <h3>Blog</h3>
+        <p>Coming soon</p>
+      </div>
+      <div class="section-placeholder">
+        <h3>Server</h3>
+        <p>Coming soon</p>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>© 2024 David Lucas. All Rights Reserved.</p>
+    </footer>
+  </div>
+
+  <!-- Fade Transition Script -->
+  <script>
+    const link = document.getElementById("deepDiveLink");
+
+    link.addEventListener("click", function (e) {
+      e.preventDefault();
+      document.body.classList.add("fade-out");
+      setTimeout(() => {
+        window.location.href = this.href;
+      }, 600);
+    });
+
+    // Subtle star generation
+    const subtleStars = document.querySelector('.subtle-stars');
+    for (let i = 0; i < 30; i++) {
+      const star = document.createElement("div");
+      star.className = "subtle-star";
+      star.style.top = `${Math.random() * 100}%`;
+      star.style.left = `${Math.random() * 100}%`;
+      star.style.animationDelay = `${Math.random() * 3}s`;
+      subtleStars.appendChild(star);
+    }
+  </script>
+</body>
+</html>

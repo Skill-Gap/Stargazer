@@ -1,0 +1,37 @@
+Use these exact decisions for the layered parallax starfield:
+
+1. Number of layers
+- Use 3 starfield layers total
+- Layer 1 = far background
+- Layer 2 = mid depth
+- Layer 3 = near subtle foreground
+- Do not add more layers for V1
+
+2. Speed ratios
+- Each layer should move at a slightly different speed to create depth
+- Keep all motion very subtle
+- Use approximate speed ratios like:
+  - Layer 1: 1x
+  - Layer 2: 1.35x
+  - Layer 3: 1.7x
+- The effect should be felt more than noticed
+
+3. Movement direction
+- Use very slow diagonal drift
+- Keep all layers moving in the same general direction
+- Slightly offset timing/position between layers so the motion does not feel mechanical
+- Do not use circular or rotating motion
+
+4. Implementation
+- Use CSS animations for the layered starfield
+- Keep it lightweight and smooth
+- Avoid unnecessary JavaScript for this version unless absolutely needed
+
+5. Star size and density variation
+- Far layer: more stars, smaller size, dimmer opacity
+- Mid layer: medium density and medium size
+- Near layer: fewer stars, slightly larger, slightly brighter
+- Keep all stars relatively small and elegant
+
+Overall goal:
+The layered starfield should create a calm sense of depth and life in the universe background without distracting from the STARGAZER title.

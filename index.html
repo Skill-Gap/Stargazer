@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Stargazer - Personal Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- LANDING PAGE SECTION -->
+  <section id="landing" class="landing-section active">
+    <!-- Animated space background -->
+    <div class="space-background">
+      <!-- Layered parallax starfield -->
+      <div class="starfield-layer layer-1"></div>
+      <div class="starfield-layer layer-2"></div>
+      <div class="starfield-layer layer-3"></div>
+      
+      <!-- Nebula glow layers -->
+      <div class="nebula-layer nebula-1"></div>
+      <div class="nebula-layer nebula-2"></div>
+      <div class="nebula-layer nebula-3"></div>
+      
+      <!-- Parallax particles -->
+      <div class="particles-container"></div>
+      
+      <!-- Cosmic horizon glow -->
+      <div class="cosmic-horizon"></div>
+    </div>
+
+    <!-- Hero content (no panel, floating in universe) -->
+    <div class="landing-hero">
+      <h1 class="hero-title">
+        <span class="star-text">STAR</span><span class="gazer-text">GAZER</span>
+      </h1>
+      <p class="hero-subtitle">Navigate your systems. Build your future.</p>
+      
+      <div class="hero-buttons">
+        <button id="enterBtn" class="btn-hero btn-enter">Enter</button>
+        <a href="deep-dive.html" class="btn-hero btn-deepdive">Deep Dive</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- DASHBOARD SECTION -->
+  <section id="dashboard" class="dashboard-section">
+    <!-- Header bar -->
+    <header class="dashboard-header">
+      <div class="header-content">
+        <h1 class="header-title">STARGAZER</h1>
+        <div class="header-status">Status: Online</div>
+      </div>
+    </header>
+
+    <!-- Main dashboard layout -->
+    <div class="dashboard-container">
+      <!-- Sidebar navigation -->
+      <aside class="sidebar">
+        <nav class="sidebar-nav">
+          <button class="nav-item active" data-section="overview">
+            <span class="nav-icon">◆</span> Overview
+          </button>
+          <button class="nav-item" data-section="projects">
+            <span class="nav-icon">◆</span> Projects
+          </button>
+          <button class="nav-item" data-section="lab">
+            <span class="nav-icon">◆</span> Lab
+          </button>
+          <button class="nav-item" data-section="journal">
+            <span class="nav-icon">◆</span> Journal
+          </button>
+          <button class="nav-item" data-section="systems">
+            <span class="nav-icon">◆</span> Systems
+          </button>
+        </nav>
+      </aside>
+
+      <!-- Main content area -->
+      <main class="dashboard-content">
+        <!-- Overview Section -->
+        <div class="section-panel active" id="section-overview">
+          <div class="panel-header">
+            <h2>Overview</h2>
+            <div class="panel-accent"></div>
+          </div>
+          <div class="panel-body">
+            <p class="intro-text">Welcome to Stargazer. Your personal command interface for ideas, systems, and execution.</p>
+          </div>
+        </div>
+
+        <!-- Projects Section -->
+        <div class="section-panel" id="section-projects">
+          <div class="panel-header">
+            <h2>Projects</h2>
+            <div class="panel-accent"></div>
+          </div>
+          <div class="cards-grid">
+            <div class="card">
+              <div class="card-icon">⬢</div>
+              <h3>Stargazer Website</h3>
+              <p>Personal futuristic dashboard</p>
+            </div>
+            <div class="card">
+              <div class="card-icon">⬢</div>
+              <h3>Homelab</h3>
+              <p>Local infrastructure & systems</p>
+            </div>
+            <div class="card">
+              <div class="card-icon">⬢</div>
+              <h3>Robotics</h3>
+              <p>Autonomous builds & experiments</p>
+            </div>
+            <div class="card">
+              <div class="card-icon">⬢</div>
+              <h3>Cybersecurity</h3>
+              <p>Security research & tools</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lab Section -->
+        <div class="section-panel" id="section-lab">
+          <div class="panel-header">
+            <h2>Lab</h2>
+            <div class="panel-accent"></div>
+          </div>
+          <div class="cards-grid">
+            <div class="card">
+              <div class="card-icon">⬢</div>
+              <h3>Active Systems</h3>
+              <p>Running services & processes</p>
+            </div>
+            <div class="card">
+              <div class="card-icon">⬢</div>
+              <h3>Remote Access</h3>
+              <p>VPN & SSH connections</p>
+            </div>
+            <div class="card">
+              <div class="card-icon">⬢</div>
+              <h3>Automation Queue</h3>
+              <p>Pending tasks & workflows</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Journal Section -->
+        <div class="section-panel" id="section-journal">
+          <div class="panel-header">
+            <h2>Journal</h2>
+            <div class="panel-accent"></div>
+          </div>
+          <div class="cards-grid">
+            <div class="card">
+              <div class="card-icon">⬢</div>
+              <h3>Latest Reflection</h3>
+              <p>Recent thoughts & observations</p>
+            </div>
+            <div class="card">
+              <div class="card-icon">⬢</div>
+              <h3>Weekly Progress</h3>
+              <p>This week's accomplishments</p>
+            </div>
+            <div class="card">
+              <div class="card-icon">⬢</div>
+              <h3>Build Notes</h3>
+              <p>Technical notes & learnings</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Systems Section -->
+        <div class="section-panel" id="section-systems">
+          <div class="panel-header">
+            <h2>Systems</h2>
+            <div class="panel-accent"></div>
+          </div>
+          <div class="cards-grid">
+            <div class="card">
+              <div class="card-icon">⬢</div>
+              <h3>Desktop</h3>
+              <p>Primary workstation</p>
+            </div>
+            <div class="card">
+              <div class="card-icon">⬢</div>
+              <h3>Raspberry Pi</h3>
+              <p>IoT & edge computing</p>
+            </div>
+            <div class="card">
+              <div class="card-icon">⬢</div>
+              <h3>Network</h3>
+              <p>Local network infrastructure</p>
+            </div>
+            <div class="card">
+              <div class="card-icon">⬢</div>
+              <h3>Cloud</h3>
+              <p>Remote services & storage</p>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </section>
+
+  <script src="scripts.js"></script>
+</body>
+</html>

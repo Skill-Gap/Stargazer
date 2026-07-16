@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Deep Dive - Stargazer</title>
+  <style>
+    :root {
+      --color-bg-dark: #0a0e27;
+      --color-bg-darker: #050810;
+      --color-accent-cyan: #00d4ff;
+      --color-accent-purple: #b344ff;
+      --color-accent-blue: #4da6ff;
+      --color-text-primary: #ffffff;
+      --color-text-secondary: #a8b2d1;
+      --color-border: rgba(0, 212, 255, 0.2);
+      --transition-smooth: 0.6s ease;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--color-bg-darker);
+      color: var(--color-text-primary);
+      letter-spacing: 0.5px;
+      overflow-y: auto;
+      opacity: 0;
+      animation: fadeInPage 0.6s ease forwards;
+    }
+
+    @keyframes fadeInPage {
+      to {
+        opacity: 1;
+      }
+    }
+
+    /* Universe background - same as landing */
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(ellipse at center, #1a1a3e 0%, var(--color-bg-darker) 100%);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Animated starfield */
+    body::after {
+      content: "";
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+      box-shadow: 
+        100px 100px #fff, 200px 300px #fff, 400px 200px #fff, 250px 150px #fff,
+        120px 250px #fff, 300px 100px #fff, 500px 300px #fff,
+        150px 400px #fff, 350px 350px #fff, 450px 100px #fff,
+        50px 50px #fff, 600px 100px #fff, 250px 450px #fff;
+      animation: twinglePage 3s ease-in-out infinite;
+    }
+
+    @keyframes twinglePage {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 0.8; }
+    }
+
+    /* Header */
+    header {
+      background: rgba(10, 14, 39, 0.6);
+      border-bottom: 1px solid var(--color-border);
+      padding: 20px 40px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .header-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: 3px;
+      background: linear-gradient(135deg, var(--color-accent-cyan), var(--color-accent-blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .return-link {
+      color: rgba(143, 91, 255, 0.8);
+      text-decoration: none;
+      font-weight: 600;
+      padding: 10px 20px;
+      border: 1.5px solid rgba(143, 91, 255, 0.6);
+      border-radius: 2px;
+      transition: all 0.3s ease;
+      font-size: 0.9rem;
+      letter-spacing: 0.5px;
+    }
+
+    .return-link:hover {
+      border-color: rgba(143, 91, 255, 0.9);
+      color: rgba(143, 91, 255, 1);
+      background: rgba(143, 91, 255, 0.08);
+      box-shadow: 0 0 15px rgba(143, 91, 255, 0.4);
+    }
+
+    /* Main content */
+    main {
+      max-width: 1000px;
+      margin: 60px auto;
+      padding: 0 40px 60px 40px;
+      position: relative;
+      z-index: 1;
+    }
+
+    h1 {
+      font-size: clamp(2.5rem, 6vw, 3.5rem);
+      font-weight: 700;
+      margin-bottom: 40px;
+      letter-spacing: 2px;
+      text-align: center;
+      background: linear-gradient(135deg, var(--color-accent-cyan), var(--color-accent-blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .content-section {
+      background: rgba(10, 14, 39, 0.3);
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      padding: 40px;
+      margin-bottom: 24px;
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      transition: all 0.3s ease;
+    }
+
+    .content-section:hover {
+      border-color: var(--color-accent-cyan);
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
+      background: rgba(10, 14, 39, 0.4);
+    }
+
+    .section-title {
+      font-size: 1.6rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      letter-spacing: 1px;
+    }
+
+    .section-title .cyan {
+      color: var(--color-accent-cyan);
+    }
+
+    .section-title .purple {
+      color: rgba(143, 91, 255, 0.9);
+    }
+
+    .accent-bar {
+      width: 50px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--color-accent-cyan), var(--color-accent-purple));
+      margin-bottom: 20px;
+      border-radius: 1px;
+    }
+
+    p {
+      line-height: 1.8;
+      color: var(--color-text-secondary);
+      margin-bottom: 15px;
+      font-size: 1rem;
+    }
+
+    p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      header {
+        padding: 15px 20px;
+      }
+
+      .header-content {
+        flex-direction: column;
+        gap: 15px;
+      }
+
+      main {
+        margin: 40px auto;
+        padding: 0 20px 40px 20px;
+      }
+
+      h1 {
+        font-size: 2rem;
+        margin-bottom: 30px;
+      }
+
+      .content-section {
+        padding: 25px;
+        margin-bottom: 20px;
+      }
+
+      .section-title {
+        font-size: 1.3rem;
+      }
+
+      .return-link {
+        padding: 10px 16px;
+        font-size: 0.85rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-content">
+      <h2 class="header-title">DEEP DIVE</h2>
+      <a href="index.html" class="return-link">← Return</a>
+    </div>
+  </header>
+
+  <main>
+    <h1>Explore the Universe</h1>
+
+    <div class="content-section">
+      <h2 class="section-title"><span class="cyan">PHILOSOPHY</span></h2>
+      <div class="accent-bar"></div>
+      <p>
+        Stargazer represents more than just a portfolio—it's a personal command center. 
+        Built on the philosophy of bringing structure and beauty to digital experiences, 
+        this dashboard reflects a belief that form and function work in harmony.
+      </p>
+      <p>
+        The design philosophy emphasizes minimalism without sacrificing depth, 
+        creating interfaces that feel both powerful and approachable. Every detail matters.
+      </p>
+    </div>
+
+    <div class="content-section">
+      <h2 class="section-title"><span class="purple">VISION</span></h2>
+      <div class="accent-bar"></div>
+      <p>
+        The vision for Stargazer is to create a living, breathing digital space 
+        that evolves with your projects and ambitions. It's designed as a hub 
+        where ideas take form, systems connect, and progress is tracked.
+      </p>
+      <p>
+        From robotics and cybersecurity to creative ventures, Stargazer serves as 
+        a command center for turning visions into reality. It's your personal universe.
+      </p>
+    </div>
+
+    <div class="content-section">
+      <h2 class="section-title"><span class="cyan">TECHNICAL FOUNDATION</span></h2>
+      <div class="accent-bar"></div>
+      <p>
+        Built with clean, semantic HTML, CSS animations, and vanilla JavaScript, 
+        Stargazer prioritizes performance and user experience. The design uses 
+        modern web technologies like CSS Grid, Flexbox, and CSS variables for 
+        maintainability and scalability.
+      </p>
+      <p>
+        Glassmorphism effects, smooth transitions, and carefully crafted color 
+        palettes create an immersive, premium aesthetic that feels both futuristic 
+        and inviting. Every animation serves a purpose.
+      </p>
+    </div>
+
+    <div class="content-section">
+      <h2 class="section-title"><span class="purple">FUTURE DIRECTIONS</span></h2>
+      <div class="accent-bar"></div>
+      <p>
+        The roadmap includes enhanced interactivity, project filtering, real-time 
+        system monitoring, and integrations with external services. Each iteration 
+        will build upon this foundation while maintaining the core visual identity.
+      </p>
+      <p>
+        Stargazer is more than a static website—it's a platform for continuous 
+        growth and exploration through the cosmos of creation.
+      </p>
+    </div>
+  </main>
+</body>
+</html>

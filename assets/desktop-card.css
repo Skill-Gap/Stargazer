@@ -1,0 +1,36 @@
+/* Desktop card enhancements for Stargazer dashboard */
+.device-card.desktop-enhanced {
+  background: linear-gradient(180deg, rgba(10,14,39,0.6), rgba(6,8,22,0.6));
+  border: 1px solid rgba(0,212,255,0.08);
+  box-shadow: 0 10px 30px rgba(0,212,255,0.06), inset 0 0 40px rgba(0,0,0,0.12);
+  padding: 18px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.device-card.desktop-enhanced .device-header{
+  display:flex;align-items:center;justify-content:space-between;gap:12px
+}
+.device-card.desktop-enhanced .device-name{font-size:1.2rem;margin:0}
+.device-card.desktop-enhanced .device-type{color:var(--color-text-secondary);font-size:0.9rem;margin:2px 0 0 0}
+
+.device-meta{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:6px}
+.device-field{background:rgba(255,255,255,0.02);padding:8px;border-radius:6px;border:1px solid rgba(0,212,255,0.03);display:flex;flex-direction:column}
+.device-field .label{font-size:0.75rem;color:var(--color-text-secondary);margin-bottom:4px}
+.device-field .value{font-weight:600;color:var(--color-text-primary);font-size:0.95rem}
+
+.device-terminal{margin-top:8px;background:linear-gradient(180deg, rgba(2,4,10,0.6), rgba(6,8,22,0.6));border-radius:6px;padding:10px;border:1px solid rgba(0,212,255,0.04)}
+.terminal-output{font-family:'Courier New',monospace;font-size:0.85rem;color:#bdefff;max-height:150px;overflow:auto;white-space:pre-wrap}
+.terminal-line{padding:2px 0;border-bottom:1px dashed rgba(0,212,255,0.03)}
+.terminal-line:last-child{border-bottom:none}
+.term-time{color:var(--color-text-secondary);font-size:0.78rem;margin-right:8px}
+
+.device-actions{display:flex;gap:8px;justify-content:flex-end}
+
+/* Make sure card fits grid like others */
+.device-card.desktop-enhanced{min-height:220px}
+
+@media (max-width:768px){.device-meta{grid-template-columns:1fr}
+.device-actions{justify-content:flex-start}}

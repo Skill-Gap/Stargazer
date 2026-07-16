@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Stargazer Journal</title>
+  <link rel="stylesheet" href="assets/stargazer.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <h1>Stargazer Journal</h1>
+      <p class="subtitle">A quiet log under the stars</p>
+    </header>
+
+    <section class="new-entry">
+      <h2>New Entry</h2>
+      <form id="entryForm">
+        <label class="field">Title
+          <input type="text" id="title" required maxlength="120" />
+        </label>
+
+        <label class="field">Mood
+          <select id="mood">
+            <option>✨ Inspired</option>
+            <option>🌙 Calm</option>
+            <option>⭐ Excited</option>
+            <option>🌫️ Reflective</option>
+            <option>💤 Tired</option>
+          </select>
+        </label>
+
+        <label class="field">Tags
+          <input type="text" id="tags" placeholder="comma, separated" />
+        </label>
+
+        <label class="field">Content
+          <textarea id="content" rows="6" required></textarea>
+        </label>
+
+        <div class="actions">
+          <button type="submit" class="btn primary">Save</button>
+          <button type="button" id="clear" class="btn">Clear</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="entries">
+      <h2>Entries</h2>
+      <div id="entriesList" class="entries-list"></div>
+    </section>
+  </div>
+
+  <script src="assets/stargazer.js"></script>
+</body>
+</html>

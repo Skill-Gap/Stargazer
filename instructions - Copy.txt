@@ -1,0 +1,50 @@
+Stargazer runs on my Raspberry Pi 5 as the always-on host.
+
+Focus only on Home Assistant integration for now.
+
+Goal:
+Add a Home Assistant tab to Stargazer that lets me control smart plugs from the web dashboard.
+
+Architecture:
+Frontend browser → Stargazer backend on Pi → Home Assistant API
+
+Do not call Home Assistant directly from frontend.
+Do not expose the Home Assistant token in frontend JavaScript.
+Store Home Assistant config in backend environment variables.
+
+Needed frontend:
+1. Add sidebar item: Home Assistant
+2. Add section panel: section-homeassistant
+3. Add two cards:
+   - Raspberry Pi Plug
+   - Desktop Plug
+4. Each card needs:
+   - status text
+   - REFRESH STATUS button
+   - TURN ON button
+   - TURN OFF button
+5. Every button should add an entry to the existing Recent Activity log.
+
+Needed backend:
+Create endpoints:
+GET /ha/status/:entity
+POST /ha/turn_on
+POST /ha/turn_off
+
+Use .env variables:
+HA_URL=http://HOME_ASSISTANT_IP:8123
+HA_TOKEN=LONG_LIVED_ACCESS_TOKEN
+PI_PLUG_ENTITY=switch.YOUR_PI_PLUG
+DESKTOP_PLUG_ENTITY=switch.YOUR_DESKTOP_PLUG
+
+Backend should call Home Assistant REST API:
+GET /api/states/{entity_id}
+POST /api/services/switch/turn_on
+POST /api/services/switch/turn_off
+
+Use Bearer token auth:
+Authorization: Bearer ${HA_TOKEN}
+
+Keep existing Pi status code working.
+Do not redesign the whole site.
+Only add Home Assistant integration.

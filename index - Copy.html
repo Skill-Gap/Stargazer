@@ -70,9 +70,6 @@
           <button class="nav-item" data-section="journal">
             <span class="nav-icon">◆</span> Journal
           </button>
-          <button class="nav-item" data-section="homeassistant">
-            <span class="nav-icon">◆</span> Home Assistant
-          </button>
           <button class="nav-item" data-section="systems">
             <span class="nav-icon">◆</span> Systems
           </button>
@@ -297,60 +294,6 @@
             <!-- Embedded Stargazer page -->
             <iframe src="stargazer.html" id="stargazerFrame" style="width:100%;height:640px;border:0;border-radius:8px;box-shadow:0 8px 30px rgba(122,252,255,0.06);"></iframe>
             <p style="color:var(--muted);margin-top:8px">If the embedded page doesn't display, open it in a new tab.</p>
-          </div>
-        </div>
-
-        <!-- Home Assistant Section -->
-        <div class="section-panel" id="section-homeassistant">
-          <div class="panel-header">
-            <h2>Home Assistant <span style="margin-left:12px;vertical-align:middle"><span id="haStatusDot" class="status-indicator checking"></span></span></h2>
-            <div class="panel-accent"></div>
-          </div>
-          <div class="panel-body">
-            <div class="cards-grid">
-              <!-- Card 1: Home Assistant Status -->
-              <div class="card">
-                <h3>Home Assistant</h3>
-                <p>Connection: <span id="haConnection">Unknown</span></p>
-                <p>Last Updated: <span id="haLastUpdated">—</span></p>
-              </div>
-
-              <!-- Card 2: Raspberry Pi Smart Plug -->
-              <div class="card">
-                <h3>Raspberry Pi Smart Plug <span style="margin-left:8px"><span id="haPiDot" class="status-indicator"></span></span></h3>
-                <p>Name: <span id="haPiName">—</span></p>
-                <p>Power State: <span id="haPiPower">Unknown</span></p>
-                <p>Last Updated: <span id="haPiLastUpdated">—</span></p>
-                <div style="margin-top:8px">
-                  <button id="haPiOn" class="action-btn">Turn On</button>
-                  <button id="haPiOff" class="action-btn">Turn Off</button>
-                </div>
-              </div>
-
-              <!-- Card 3: Desktop Smart Plug -->
-              <div class="card">
-                <h3>Desktop Smart Plug <span style="margin-left:8px"><span id="haDesktopDot" class="status-indicator"></span></span></h3>
-                <p>Name: <span id="haDesktopName">—</span></p>
-                <p>Power State: <span id="haDesktopPower">Unknown</span></p>
-                <p>Last Updated: <span id="haDesktopLastUpdated">—</span></p>
-                <div style="margin-top:8px">
-                  <button id="haDesktopOn" class="action-btn">Turn On</button>
-                  <button id="haDesktopOff" class="action-btn">Turn Off</button>
-                </div>
-              </div>
-
-              <!-- Card 4: Lamp -->
-              <div class="card">
-                <h3>Lamp <span style="margin-left:8px"><span id="haLampDot" class="status-indicator"></span></span></h3>
-                <p>Name: <span id="haLampName">—</span></p>
-                <p>Power State: <span id="haLampPower">Unknown</span></p>
-                <p>Last Updated: <span id="haLampLastUpdated">—</span></p>
-                <div style="margin-top:8px">
-                  <button id="haLampOn" class="action-btn">Turn On</button>
-                  <button id="haLampOff" class="action-btn">Turn Off</button>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 

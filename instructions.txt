@@ -1,37 +1,62 @@
-Use these exact decisions for the layered parallax starfield:
+Integrate Home Assistant into Stargazer.
 
-1. Number of layers
-- Use 3 starfield layers total
-- Layer 1 = far background
-- Layer 2 = mid depth
-- Layer 3 = near subtle foreground
-- Do not add more layers for V1
+Environment Variables:
 
-2. Speed ratios
-- Each layer should move at a slightly different speed to create depth
-- Keep all motion very subtle
-- Use approximate speed ratios like:
-  - Layer 1: 1x
-  - Layer 2: 1.35x
-  - Layer 3: 1.7x
-- The effect should be felt more than noticed
+HA_URL=http://192.168.1.35:8123
+HA_TOKEN=<read from process.env>
+PI_PLUG_ENTITY=switch.pi_socket_1
+DESKTOP_PLUG_ENTITY=switch.desktop_socket_1
+LAMP_ENTITY=switch.ihome_ww117_smart_plug_socket_1
 
-3. Movement direction
-- Use very slow diagonal drift
-- Keep all layers moving in the same general direction
-- Slightly offset timing/position between layers so the motion does not feel mechanical
-- Do not use circular or rotating motion
+Backend Requirements:
 
-4. Implementation
-- Use CSS animations for the layered starfield
-- Keep it lightweight and smooth
-- Avoid unnecessary JavaScript for this version unless absolutely needed
+Create routes:
 
-5. Star size and density variation
-- Far layer: more stars, smaller size, dimmer opacity
-- Mid layer: medium density and medium size
-- Near layer: fewer stars, slightly larger, slightly brighter
-- Keep all stars relatively small and elegant
+GET /api/homeassistant/status
 
-Overall goal:
-The layered starfield should create a calm sense of depth and life in the universe background without distracting from the STARGAZER title.
+GET /api/homeassistant/pi
+
+GET /api/homeassistant/desktop
+
+GET /api/homeassistant/lamp
+
+POST /api/homeassistant/pi/on
+POST /api/homeassistant/pi/off
+
+POST /api/homeassistant/desktop/on
+POST /api/homeassistant/desktop/off
+
+POST /api/homeassistant/lamp/on
+POST /api/homeassistant/lamp/off
+
+Use Home Assistant REST API.
+
+Status endpoint should verify Home Assistant is reachable.
+
+Device endpoints should return:
+- entity_id
+- state
+- friendly_name
+
+Frontend Requirements:
+
+Add Home Assistant to Stargazer sidebar.
+
+Create cards:
+
+Home Assistant Status
+Pi Plug
+Desktop Plug
+Lamp
+
+Each card should show:
+- Current state
+- Last updated
+
+Each device card should have:
+[ON] [OFF]
+
+Use the same visual style as the Systems dashboard.
+
+Do not hardcode tokens.
+Read all secrets from environment variables.

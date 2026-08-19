@@ -1,157 +1,80 @@
-# Stargazer Backend API
+# Stargazer backends
 
-A lightweight FastAPI server running on Raspberry Pi that provides real-time system status data for the Stargazer personal control dashboard.
+Stargazer deliberately uses two small services with different deployment roles.
 
-## Overview
+- The **Express gateway** (`server.js`) runs on the Windows workstation, serves the allowlisted dashboard files, launches the local SSH helper, proxies Home Assistant, and is the browser's only API origin.
+- The **FastAPI Pi agent** (`main.py`) runs on the Raspberry Pi and reports system telemetry. It is called by Express, not directly by browser code.
 
-This backend exposes three endpoints:
-- `/` — Welcome message with app info
-- `/health` — Health check endpoint
-- `/status` — Real-time system information (CPU, memory, disk, uptime, hostname)
+Do not expose this development setup to the public internet. Home Assistant controls and the local connection helper do not yet have user authentication.
 
-The API is designed to be simple, stable, and easily consumed by the Stargazer frontend via local or Tailscale network access.
+## Express gateway
 
-## Installation
+Requires Node.js 18 or newer.
 
-### Prerequisites
-- Python 3.7+ installed on your Raspberry Pi
-- `pip` package manager
+```powershell
+cd backend
+npm install
+Copy-Item .env.example .env
+# Edit .env for this machine; never commit it.
+npm start
+```
 
-### Setup Steps
+Open `http://localhost:3000`. `PORT` changes the listening port.
 
-1. **Navigate to the backend folder:**
-   ```bash
-   cd backend
-   ```
+Configuration:
 
-2. **Create a virtual environment:**
-   ```bash
-   python3 -m venv venv
-   ```
+- `PI_API_URL`: Pi agent origin, such as `http://pi-host:8000`. Required for `GET /api/pi/status`.
+- `UPSTREAM_TIMEOUT_MS`: Pi and Home Assistant timeout; defaults to 5000.
+- `DESKTOP_TAILSCALE_HOST` and `DESKTOP_LOCAL_HOST`: optional Desktop probe targets, tried in that order.
+- `LAPTOP_TAILSCALE_HOST` and `LAPTOP_LOCAL_HOST`: optional Laptop probe targets, tried in that order.
+- `HA_URL` and `HA_TOKEN`: both required for Home Assistant endpoints.
+- `PI_PLUG_ENTITY`, `DESKTOP_PLUG_ENTITY`, `LAMP_ENTITY`: optional entity overrides.
+- `ALLOWED_ORIGINS`: optional comma-separated CORS allowlist for a separately hosted frontend. Same-origin operation does not require CORS.
+- `PI_TAILSCALE_IP` and `PI_LOCAL_IP`: optional overrides for legacy `GET /status/pi` only.
 
-3. **Activate the virtual environment:**
-   ```bash
-   # On Linux/macOS (Raspberry Pi)
-   source venv/bin/activate
-   
-   # On Windows (if testing locally)
-   venv\Scripts\activate
-   ```
+Browser-facing endpoints:
 
-4. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+- `GET /health`
+- `GET /api/pi/status`
+- `GET /api/devices/status`
+- `POST /api/pi/connect`
+- `GET /api/homeassistant/status`
+- `GET /api/homeassistant/{pi|desktop|lamp}`
+- `POST /api/homeassistant/{pi|desktop|lamp}/{on|off}`
 
-## Running the Server
+Compatibility endpoints `POST /connect/pi` and `GET /status/pi` remain available during migration.
 
-Once dependencies are installed and the virtual environment is activated:
+`GET /api/devices/status` is the dashboard's read-only aggregate. Pi availability comes from FastAPI telemetry. Desktop and Laptop use environment-configured reachability probes with Tailscale-first/local-fallback behavior. Missing configuration is reported as `configured: false`; an unreachable configured device is reported offline. A failure for one device never fails the aggregate response. These status probes do not authorize or perform device actions.
+
+The gateway exposes only `index.html`, `deep-dive.html`, `stargazer.html`, their root CSS/JavaScript files, and the root `assets/` directory. It does not statically expose `backend/`, `.env`, documentation, or repository metadata.
+
+## FastAPI Pi agent
+
+On the Raspberry Pi:
 
 ```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-- `--host 0.0.0.0` makes the API accessible from any network interface
-- `--port 8000` runs the server on port 8000 (default FastAPI port)
+Endpoints:
 
-The API will be available at:
-- Local: `http://localhost:8000`
-- Network: `http://<pi-ip>:8000`
+- `GET /`: service information.
+- `GET /health`: health and timestamp.
+- `GET /status`: hostname, CPU, memory, disk, boot time, and uptime.
 
-## Testing the API
+Verify locally with `curl http://localhost:8000/status`, then set the workstation gateway's `PI_API_URL` to the Pi agent origin.
 
-Use your browser or `curl` to test the endpoints:
+## Tests
 
-### 1. Welcome Endpoint
-```
-http://<pi-ip>:8000/
-```
-Returns app name, version, and usage information.
-
-### 2. Health Check
-```
-http://<pi-ip>:8000/health
-```
-Returns current status and timestamp. Use this to verify the API is running.
-
-### 3. System Status
-```
-http://<pi-ip>:8000/status
-```
-Returns detailed system information including:
-- `hostname` — Device hostname
-- `cpu_percent` — Current CPU usage (%)
-- `memory_percent` — Memory usage (%)
-- `memory_used` / `memory_total` — Memory in bytes
-- `memory_used_gb` / `memory_total_gb` — Memory in GB
-- `disk_percent` — Disk usage (%)
-- `disk_used` / `disk_total` — Disk space in bytes
-- `disk_used_gb` / `disk_total_gb` — Disk space in GB
-- `boot_time` — System boot timestamp (ISO 8601)
-- `uptime_seconds` — Seconds since last boot
-
-### Example with curl (from Raspberry Pi)
-```bash
-curl http://localhost:8000/status
+```powershell
+cd backend
+npm test
 ```
 
-### Testing from Another Device
-Replace `<pi-ip>` with your Raspberry Pi's IP address:
-```bash
-curl http://192.168.1.100:8000/status
-```
+Tests inject network and launcher dependencies. They do not contact Home Assistant, ping private devices, launch SSH, or change device state.
 
-## CORS Middleware
-
-The backend includes optional CORS (Cross-Origin Resource Sharing) middleware to allow requests from any origin. This is currently set to `allow_origins=["*"]` for development.
-
-**For production**, consider tightening CORS by specifying allowed origins:
-```python
-allow_origins=[
-    "http://localhost:3000",
-    "http://<your-frontend-domain>",
-]
-```
-
-Edit `main.py` to customize CORS settings as needed.
-
-## Integration with Stargazer Frontend
-
-This API is designed to be consumed by the Stargazer frontend (`index.html`, `scripts.js`, etc.). Once the frontend is updated, it will fetch system data from these endpoints and display it in the control dashboard.
-
-## Troubleshooting
-
-### Port Already in Use
-If port 8000 is busy, run with a different port:
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8001
-```
-
-### Cannot Access from Network
-- Ensure your Raspberry Pi firewall allows port 8000
-- Verify the Pi's IP address: `hostname -I`
-- Check that the uvicorn server is running: `ps aux | grep uvicorn`
-
-### psutil Module Not Found
-Ensure your virtual environment is activated and dependencies are installed:
-```bash
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-## Future Enhancements
-
-- Authentication/authorization
-- Docker containerization
-- Tailscale-specific routing
-- Additional system metrics (temperature, network stats)
-- Database for historical data
-- WebSocket support for real-time updates
-
-## Version
-
-**v1.0** — Initial release with core system monitoring endpoints.
-
----
-
-Built for Stargazer — A personal control dashboard by Lucas.
+The FastAPI agent currently has no automated test suite. Its `/status` behavior still requires validation on the target Raspberry Pi because disk and host metrics depend on that environment.

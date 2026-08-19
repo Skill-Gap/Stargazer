@@ -48,8 +48,8 @@
     <!-- Header bar -->
     <header class="dashboard-header">
       <div class="header-content">
-        <h1 class="header-title" id="homeLink" style="cursor: pointer;">STARGAZER</h1>
-        <div class="header-status">Status: Online</div>
+        <button class="header-title header-home" id="homeLink" type="button" aria-label="Return to Stargazer landing page">STARGAZER</button>
+        <div class="header-status" id="dashboardStatus" role="status" aria-live="polite">Devices: Checking…</div>
       </div>
     </header>
 
@@ -58,22 +58,22 @@
       <!-- Sidebar navigation -->
       <aside class="sidebar">
         <nav class="sidebar-nav">
-          <button class="nav-item active" data-section="overview">
+          <button class="nav-item active" data-section="overview" aria-pressed="true">
             <span class="nav-icon">◆</span> Overview
           </button>
-          <button class="nav-item" data-section="projects">
+          <button class="nav-item" data-section="projects" aria-pressed="false">
             <span class="nav-icon">◆</span> Projects
           </button>
-          <button class="nav-item" data-section="lab">
+          <button class="nav-item" data-section="lab" aria-pressed="false">
             <span class="nav-icon">◆</span> Lab
           </button>
-          <button class="nav-item" data-section="journal">
+          <button class="nav-item" data-section="journal" aria-pressed="false">
             <span class="nav-icon">◆</span> Journal
           </button>
-          <button class="nav-item" data-section="homeassistant">
+          <button class="nav-item" data-section="homeassistant" aria-pressed="false">
             <span class="nav-icon">◆</span> Home Assistant
           </button>
-          <button class="nav-item" data-section="systems">
+          <button class="nav-item" data-section="systems" aria-pressed="false">
             <span class="nav-icon">◆</span> Systems
           </button>
         </nav>
@@ -92,23 +92,23 @@
             <div class="status-strip">
               <div class="status-item">
                 <div class="status-label">Systems Online</div>
-                <div class="status-value">3/3</div>
+                <div class="status-value" id="systemsOnlineCount">—/—</div>
               </div>
               <div class="status-item">
-                <div class="status-label">Active Link</div>
-                <div class="status-value">Tailscale</div>
+                <div class="status-label">Active Links</div>
+                <div class="status-value" id="activeLinks">Checking…</div>
               </div>
               <div class="status-item">
                 <div class="status-label">Access Type</div>
-                <div class="status-value">Direct</div>
+                <div class="status-value">Gateway</div>
               </div>
               <div class="status-item">
-                <div class="status-label">Tool</div>
-                <div class="status-value">SSH</div>
+                <div class="status-label">Mode</div>
+                <div class="status-value">Monitoring</div>
               </div>
               <div class="status-item">
                 <div class="status-label">Health</div>
-                <div class="status-value status-healthy">● Optimal</div>
+                <div class="status-value" id="systemsHealth">● Checking</div>
               </div>
             </div>
 
@@ -124,10 +124,10 @@
                   </div>
                 </div>
                 <div class="device-info">
-                  <p class="device-ip">192.168.1.35</p>
+                  <p class="device-ip">Managed through Stargazer gateway · Last checked: <span id="pi-last-checked">—</span></p>
                   <div class="pi-status-section">
-                    <button class="action-btn status-check-btn" onclick="performPiStatusCheck(true)" title="Check Pi system status">CHECK STATUS</button>
-                    <div class="pi-status-display">
+                    <button id="piStatusCheck" class="action-btn status-check-btn" type="button" title="Check Pi system status">CHECK STATUS</button>
+                    <div class="pi-status-display" role="status" aria-live="polite">
                       <span class="status-indicator" id="piStatusDot"></span>
                       <span class="status-text" id="piStatusText">Status unknown</span>
                     </div>
@@ -140,10 +140,10 @@
                   </div>
                 </div>
                 <div class="device-actions">
-                  <button class="action-btn" title="Open SSH session to Raspberry Pi">CONNECT</button>
-                  <button class="action-btn" title="View remote desktop">VIEW DESKTOP</button>
-                  <button class="action-btn" title="Open shared files">OPEN SHARE</button>
-                  <button class="action-btn" title="View system logs">LOGS</button>
+                  <button id="piConnect" class="action-btn" type="button" title="Launch the configured Raspberry Pi connection helper">CONNECT</button>
+                  <button class="action-btn" type="button" disabled title="Pi desktop is not configured">VIEW DESKTOP</button>
+                  <button class="action-btn" type="button" disabled title="Pi file sharing is not configured">OPEN SHARE</button>
+                  <button class="action-btn" type="button" disabled title="Pi logs are not configured">LOGS</button>
                 </div>
               </div>
 
@@ -155,15 +155,15 @@
                     <p class="device-type">Primary Workstation</p>
                   </div>
                   <div class="device-status-compact">
-                    <span class="status-indicator online-local" id="desktopStatusDot"></span>
-                    <div class="status-text" id="desktopStatusText">Online</div>
+                    <span class="status-indicator offline" id="desktopStatusDot"></span>
+                    <div class="status-text" id="desktopStatusText">Not configured</div>
                   </div>
                 </div>
                 <div class="device-info">
                   <div class="device-meta">
-                    <div class="device-field"><div class="label">Connection</div><div class="value" id="desktop-conn">SSH</div></div>
-                    <div class="device-field"><div class="label">Local IP</div><div class="value" id="desktop-local-ip">192.168.1.57</div></div>
-                    <div class="device-field"><div class="label">Tailscale</div><div class="value" id="desktop-tailscale-ip">100.65.47.59</div></div>
+                    <div class="device-field"><div class="label">Connection</div><div class="value" id="desktop-conn">Not configured</div></div>
+                    <div class="device-field"><div class="label">Local endpoint</div><div class="value" id="desktop-local-ip">—</div></div>
+                    <div class="device-field"><div class="label">Remote endpoint</div><div class="value" id="desktop-tailscale-ip">—</div></div>
                     <div class="device-field"><div class="label">Last checked</div><div class="value" id="desktop-last-checked">—</div></div>
                   </div>
 
@@ -174,28 +174,32 @@
                   </div>
                 </div>
                 <div class="device-actions">
-                  <button class="action-btn" title="Open SSH session to Desktop">CONNECT</button>
-                  <button class="action-btn status-check-btn" title="Check Desktop system status">CHECK STATUS</button>
+                  <button id="desktopConnect" class="action-btn" type="button" disabled title="Desktop connection is not configured">CONNECT</button>
+                  <button id="desktopStatusCheck" class="action-btn status-check-btn" type="button" disabled title="Desktop status is not configured">CHECK STATUS</button>
                 </div>
               </div>
 
               <!-- Laptop -->
-              <div class="device-card">
+              <div class="device-card" id="laptopCard">
                 <div class="device-header">
                   <div>
                     <h3>Laptop</h3>
                     <p class="device-type">Mobile Development</p>
                   </div>
-                  <span class="status-badge unstable">● UNSTABLE – reconnecting…</span>
+                  <div class="device-status-compact" role="status" aria-live="polite">
+                    <span class="status-indicator offline" id="laptopStatusDot"></span>
+                    <span class="status-text" id="laptopStatusText">Not configured</span>
+                  </div>
                 </div>
                 <div class="device-info">
-                  <p class="device-ip">192.168.1.75</p>
+                  <p class="device-ip">Connection: <span id="laptop-conn">Not configured</span></p>
+                  <p class="device-ip">Last checked: <span id="laptop-last-checked">—</span></p>
                 </div>
                 <div class="device-actions">
-                  <button class="action-btn" title="Open SSH session to Laptop">CONNECT</button>
-                  <button class="action-btn" title="View remote desktop">VIEW DESKTOP</button>
-                  <button class="action-btn" title="Open shared files">OPEN SHARE</button>
-                  <button class="action-btn" title="View system logs">LOGS</button>
+                  <button class="action-btn" type="button" disabled title="Laptop connection is not configured">CONNECT</button>
+                  <button class="action-btn" type="button" disabled title="Laptop desktop is not configured">VIEW DESKTOP</button>
+                  <button class="action-btn" type="button" disabled title="Laptop file sharing is not configured">OPEN SHARE</button>
+                  <button class="action-btn" type="button" disabled title="Laptop logs are not configured">LOGS</button>
                 </div>
               </div>
             </div>
@@ -214,7 +218,7 @@
                 </div>
                 <div class="log-entry">
                   <span class="log-time">11:25</span>
-                  <span class="log-message">Laptop - Connection unstable, attempting reconnect</span>
+                  <span class="log-message">Device monitoring is waiting for live status</span>
                 </div>
                 <div class="log-entry">
                   <span class="log-time">11:15</span>
@@ -295,7 +299,7 @@
           </div>
           <div class="panel-body">
             <!-- Embedded Stargazer page -->
-            <iframe src="stargazer.html" id="stargazerFrame" style="width:100%;height:640px;border:0;border-radius:8px;box-shadow:0 8px 30px rgba(122,252,255,0.06);"></iframe>
+            <iframe src="stargazer.html" id="stargazerFrame" title="Stargazer Journal" style="width:100%;height:640px;border:0;border-radius:8px;box-shadow:0 8px 30px rgba(122,252,255,0.06);"></iframe>
             <p style="color:var(--muted);margin-top:8px">If the embedded page doesn't display, open it in a new tab.</p>
           </div>
         </div>
@@ -311,7 +315,7 @@
               <!-- Card 1: Home Assistant Status -->
               <div class="card">
                 <h3>Home Assistant</h3>
-                <p>Connection: <span id="haConnection">Unknown</span></p>
+                <p role="status" aria-live="polite">Connection: <span id="haConnection">Not checked</span></p>
                 <p>Last Updated: <span id="haLastUpdated">—</span></p>
               </div>
 

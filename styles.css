@@ -575,6 +575,12 @@ body {
   cursor: pointer;
 }
 
+.header-home {
+  border: 0;
+  padding: 0;
+  background-color: transparent;
+}
+
 .header-title:hover {
   opacity: 0.8;
   text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
@@ -927,6 +933,24 @@ body {
   transform: scale(1.03);
 }
 
+.action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+.action-btn:disabled:hover {
+  background: transparent;
+  color: var(--color-text-secondary);
+  transform: none;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-accent-cyan);
+  outline-offset: 3px;
+}
+
 .action-btn:active {
   transform: scale(0.98);
 }
@@ -984,6 +1008,11 @@ body {
 .status-indicator.offline {
   background: #ff3333;
   box-shadow: 0 0 8px #ff3333;
+}
+
+.status-indicator.unconfigured {
+  background: var(--color-text-secondary);
+  box-shadow: 0 0 8px rgba(168, 178, 209, 0.35);
 }
 
 .status-indicator.checking {

@@ -95,10 +95,17 @@ function setupHomeLink() {
 
 function switchDashboardSection(sectionId, navItems) {
   // Remove active class from all nav items
-  navItems.forEach(item => item.classList.remove('active'));
+  navItems.forEach(item => {
+    item.classList.remove('active');
+    item.setAttribute('aria-pressed', 'false');
+  });
 
   // Add active class to clicked item
-  document.querySelector(`[data-section="${sectionId}"]`).classList.add('active');
+  const activeNav = document.querySelector(`[data-section="${sectionId}"]`);
+  if (activeNav) {
+    activeNav.classList.add('active');
+    activeNav.setAttribute('aria-pressed', 'true');
+  }
 
   // Hide all section panels
   const panels = document.querySelectorAll('.section-panel');
@@ -114,11 +121,14 @@ function switchDashboardSection(sectionId, navItems) {
 // ===== RASPBERRY PI STATUS =====
 
 // Configuration
-const PI_IP = "192.168.1.35";
-const BASE_URL = `http://${PI_IP}:3000`;
+const BASE_URL = '';
 
 // Track current status to avoid redundant updates
 let currentPiStatus = null;
+let piStatusRequest = null;
+let deviceStatusRequest = null;
+let deviceStatusSequence = 0;
+let lastAppliedDeviceSequence = 0;
 
 // Convert uptime seconds to human-readable format (e.g., "2h 30m" or "45m 20s")
 function formatUptime(seconds) {
@@ -137,19 +147,183 @@ function formatUptime(seconds) {
   }
 }
 
+function formatCheckedAt(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+}
+
+function setStatusIndicator(dot, text, device) {
+  if (!dot || !text) return;
+  if (!device || device.configured !== true) {
+    dot.className = 'status-indicator unconfigured';
+    text.textContent = 'Not configured';
+  } else if (device.online === true) {
+    dot.className = 'status-indicator online';
+    text.textContent = 'Online';
+  } else {
+    dot.className = 'status-indicator offline';
+    text.textContent = 'Offline';
+  }
+}
+
+function updateDeviceDashboard(data) {
+  const devices = data?.devices || {};
+  const checkedAt = formatCheckedAt(data?.checked_at);
+  const pi = devices.pi;
+  const desktop = devices.desktop;
+  const laptop = devices.laptop;
+
+  setStatusIndicator(
+    document.getElementById('piStatusDot'),
+    document.getElementById('piStatusText'),
+    pi
+  );
+  setStatusIndicator(
+    document.getElementById('desktopStatusDot'),
+    document.getElementById('desktopStatusText'),
+    desktop
+  );
+  setStatusIndicator(
+    document.getElementById('laptopStatusDot'),
+    document.getElementById('laptopStatusText'),
+    laptop
+  );
+
+  const piChecked = document.getElementById('pi-last-checked');
+  const desktopChecked = document.getElementById('desktop-last-checked');
+  const laptopChecked = document.getElementById('laptop-last-checked');
+  if (piChecked) piChecked.textContent = checkedAt;
+  if (desktopChecked) desktopChecked.textContent = checkedAt;
+  if (laptopChecked) laptopChecked.textContent = checkedAt;
+
+  const desktopConnection = document.getElementById('desktop-conn');
+  const laptopConnection = document.getElementById('laptop-conn');
+  if (desktopConnection) desktopConnection.textContent = desktop?.configured ? (desktop.connection || 'Unavailable') : 'Not configured';
+  if (laptopConnection) laptopConnection.textContent = laptop?.configured ? (laptop.connection || 'Unavailable') : 'Not configured';
+
+  const system = pi?.online ? pi.system : null;
+  const stats = {
+    'pi-cpu': system ? `CPU: ${Number(system.cpu_percent).toFixed(1)}%` : 'CPU: —',
+    'pi-memory': system ? `Memory: ${Number(system.memory_percent).toFixed(1)}%` : 'Memory: —',
+    'pi-disk': system ? `Disk: ${Number(system.disk_percent).toFixed(1)}%` : 'Disk: —',
+    'pi-uptime': system ? `Uptime: ${formatUptime(Number(system.uptime_seconds))}` : 'Uptime: —'
+  };
+  Object.entries(stats).forEach(([id, value]) => {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value;
+  });
+
+  const configured = Number(data?.summary?.configured) || 0;
+  const online = Number(data?.summary?.online) || 0;
+  const count = document.getElementById('systemsOnlineCount');
+  const dashboardStatus = document.getElementById('dashboardStatus');
+  const health = document.getElementById('systemsHealth');
+  if (count) count.textContent = `${online}/${configured}`;
+  if (dashboardStatus) dashboardStatus.textContent = `Devices: ${online}/${configured} online`;
+  if (health) {
+    health.textContent = configured === 0 ? '● Unconfigured' : online === configured ? '● Optimal' : '● Degraded';
+    health.className = `status-value ${configured > 0 && online === configured ? 'status-healthy' : ''}`.trim();
+  }
+
+  const links = [...new Set(Object.values(devices).filter(device => device?.online && device.connection).map(device => device.connection))];
+  const activeLinks = document.getElementById('activeLinks');
+  if (activeLinks) activeLinks.textContent = links.length ? links.join(', ') : 'None';
+}
+
+function showDeviceStatusFailure(message) {
+  ['pi', 'desktop', 'laptop'].forEach(name => {
+    const prefix = name === 'pi' ? 'pi' : name;
+    const dot = document.getElementById(`${prefix}StatusDot`);
+    const text = document.getElementById(`${prefix}StatusText`);
+    if (dot) dot.className = 'status-indicator offline';
+    if (text) text.textContent = 'Status unavailable';
+  });
+  const dashboardStatus = document.getElementById('dashboardStatus');
+  const health = document.getElementById('systemsHealth');
+  const count = document.getElementById('systemsOnlineCount');
+  const links = document.getElementById('activeLinks');
+  if (dashboardStatus) dashboardStatus.textContent = 'Devices: Status unavailable';
+  if (health) health.textContent = '● Unavailable';
+  if (count) count.textContent = '—/—';
+  if (links) links.textContent = 'Unavailable';
+  console.warn('Device status refresh failed', message);
+}
+
+async function performDeviceStatusCheck(isManual = false) {
+  const button = document.getElementById('piStatusCheck');
+  if (isManual) {
+    if (button) button.disabled = true;
+    ['pi', 'desktop', 'laptop'].forEach(name => {
+      const dot = document.getElementById(`${name}StatusDot`);
+      const text = document.getElementById(`${name}StatusText`);
+      if (dot) dot.className = 'status-indicator checking';
+      if (text) text.textContent = 'Checking…';
+    });
+  }
+  if (!deviceStatusRequest) {
+    const sequence = ++deviceStatusSequence;
+    deviceStatusRequest = fetchWithTimeout('/api/devices/status', {}, 5000)
+      .then(async response => {
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null);
+          throw new Error(errorData?.error?.message || 'Device status request failed');
+        }
+        const data = await response.json();
+        if (sequence >= lastAppliedDeviceSequence) {
+          updateDeviceDashboard(data);
+          lastAppliedDeviceSequence = sequence;
+        }
+        return data;
+      })
+      .catch(error => {
+        if (sequence >= lastAppliedDeviceSequence) {
+          showDeviceStatusFailure(error.message);
+          lastAppliedDeviceSequence = sequence;
+        }
+        return null;
+      })
+      .finally(() => {
+        deviceStatusRequest = null;
+      });
+  }
+  try {
+    return await deviceStatusRequest;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function autoCheckDeviceStatus() {
+  performDeviceStatusCheck(false);
+  setInterval(() => performDeviceStatusCheck(false), 15000);
+}
+
 // Fetch Pi status directly from the Pi with a timeout (frontend-only)
 async function checkPiStatus() {
   // Use backend base URL for Pi status
   const endpoints = [
-    `${BASE_URL}/status`
+    `${BASE_URL}/api/pi/status`
   ];
 
   for (const url of endpoints) {
     try {
-      const res = await fetchWithTimeout(url, {}, 5000);
+      // Allow the gateway time to return its own normalized upstream timeout.
+      const res = await fetchWithTimeout(url, {}, 7000);
       if (res && res.ok) {
         const data = await res.json().catch(() => null);
-        return { status: 'ONLINE', data, url };
+        if (data && data.status === 'online' && data.system) {
+          return { status: 'ONLINE', data, url };
+        }
+        return { status: 'ERROR', data: null, message: 'Invalid status response' };
+      }
+      if (res) {
+        const data = await res.json().catch(() => null);
+        return {
+          status: res.status === 503 ? 'UNCONFIGURED' : 'ERROR',
+          data: null,
+          message: data?.error?.message || 'Status check failed'
+        };
       }
     } catch (e) {
       // silent, try next
@@ -178,21 +352,21 @@ function updatePiStatusUI(result) {
     if (systemData.cpu_percent !== undefined) {
       const cpuEl = document.getElementById('pi-cpu');
       if (cpuEl) {
-        cpuEl.textContent = `CPU: ${systemData.cpu_percent.toFixed(1)}%`;
+        cpuEl.textContent = `CPU: ${Number(systemData.cpu_percent).toFixed(1)}%`;
       }
     }
 
     if (systemData.memory_percent !== undefined) {
       const memEl = document.getElementById('pi-memory');
       if (memEl) {
-        memEl.textContent = `Memory: ${systemData.memory_percent.toFixed(1)}%`;
+        memEl.textContent = `Memory: ${Number(systemData.memory_percent).toFixed(1)}%`;
       }
     }
 
     if (systemData.disk_percent !== undefined) {
       const diskEl = document.getElementById('pi-disk');
       if (diskEl) {
-        diskEl.textContent = `Disk: ${systemData.disk_percent.toFixed(1)}%`;
+        diskEl.textContent = `Disk: ${Number(systemData.disk_percent).toFixed(1)}%`;
       }
     }
 
@@ -203,8 +377,9 @@ function updatePiStatusUI(result) {
       }
     }
   } else {
-    // Offline state: show red indicator
-    statusText.textContent = 'OFFLINE';
+    const label = result.status === 'UNCONFIGURED' ? 'NOT CONFIGURED' :
+      result.status === 'ERROR' ? 'ERROR' : 'OFFLINE';
+    statusText.textContent = result.message ? `${label}: ${result.message}` : label;
     statusDot.className = 'status-indicator offline';
 
     // Clear stats on offline
@@ -234,10 +409,17 @@ async function performPiStatusCheck(isManual = false) {
     statusDot.className = 'status-indicator checking';
   }
 
-  // Check status
-  const result = await checkPiStatus();
-  updatePiStatusUI(result);
-  return result;
+  if (!piStatusRequest) piStatusRequest = checkPiStatus();
+  const button = document.getElementById('piStatusCheck');
+  if (button && isManual) button.disabled = true;
+  try {
+    const result = await piStatusRequest;
+    updatePiStatusUI(result);
+    return result;
+  } finally {
+    piStatusRequest = null;
+    if (button) button.disabled = false;
+  }
 }
 
 // Auto-check Pi status on page load (silent)
@@ -264,51 +446,34 @@ function addActivityLog(message) {
   const timeStr = `${hh}:${mm}`;
   const entry = document.createElement('div');
   entry.className = 'log-entry';
-  entry.innerHTML = `<span class="log-time">${timeStr}</span><span class="log-message">${message}</span>`;
+  const time = document.createElement('span');
+  time.className = 'log-time';
+  time.textContent = timeStr;
+  const text = document.createElement('span');
+  text.className = 'log-message';
+  text.textContent = message;
+  entry.append(time, text);
   entries.prepend(entry);
 }
 
 async function connectPi() {
   addActivityLog('Raspberry Pi - Connect requested');
-  // Prefer backend helper that launches the local tailscale/connect script
   try {
-    const localBackend = 'http://localhost:3000/connect/pi';
-    const res = await fetch(localBackend, { method: 'POST' });
+    const button = document.getElementById('piConnect');
+    if (button) button.disabled = true;
+    const res = await fetch('/api/pi/connect', { method: 'POST' });
     if (res.ok) {
       addActivityLog('Raspberry Pi - Launched local connection helper');
       return;
     }
-    // If backend responded but not OK, fall back to remote helper
-  } catch (e) {
-    // Backend not reachable or failed; fall back
-    console.warn('Local connect helper failed:', e);
-  }
-
-  // Fallback: try Pi-hosted /connect endpoint then finally show SSH command
-  try {
-    const res2 = await fetch(`${BASE_URL}/connect`, { method: 'POST' });
-    if (res2.ok) {
-      const data = await res2.json().catch(() => null);
-      if (data && data.url) {
-        window.open(data.url, '_blank');
-        addActivityLog('Raspberry Pi - SSH helper opened via device');
-        return;
-      }
-    }
-
-    const cmd = `ssh lucas@${PI_IP}`;
-    try {
-      await navigator.clipboard.writeText(cmd);
-      addActivityLog('Raspberry Pi - SSH command copied to clipboard');
-      alert(`SSH command copied to clipboard:\n${cmd}`);
-    } catch (e) {
-      addActivityLog('Raspberry Pi - SSH command shown to user');
-      alert(`Use this SSH command: ${cmd}`);
-    }
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.error?.message || 'Connection helper failed');
   } catch (e) {
     console.error(e);
-    addActivityLog('Raspberry Pi - Connect failed');
-    alert('Failed to connect to Raspberry Pi');
+    addActivityLog(`Raspberry Pi - ${e.message || 'Connect failed'}`);
+  } finally {
+    const button = document.getElementById('piConnect');
+    if (button) button.disabled = false;
   }
 }
 
@@ -451,47 +616,18 @@ function attachPiActionButtons() {
   const actions = piCard.querySelector('.device-actions');
   if (!actions) return;
 
-  // Map existing buttons by their text content (CONNECT, VIEW DESKTOP, OPEN SHARE, LOGS)
-  const btns = Array.from(actions.querySelectorAll('button'));
-  btns.forEach(btn => {
-    const txt = (btn.textContent || '').trim().toUpperCase();
-    if (txt === 'CONNECT') {
-      btn.onclick = connectPi;
-    } else if (txt === 'VIEW DESKTOP') {
-      btn.onclick = openPiDesktop;
-    } else if (txt === 'OPEN SHARE') {
-      btn.onclick = openPiShare;
-    } else if (txt === 'LOGS') {
-      btn.onclick = getPiLogs;
-    }
-  });
-
-  // Add REBOOT and SHUTDOWN buttons if not present
-  if (!actions.querySelector('button[title="Reboot Raspberry Pi"]')) {
-    const rebootBtn = document.createElement('button');
-    rebootBtn.className = 'action-btn';
-    rebootBtn.title = 'Reboot Raspberry Pi';
-    rebootBtn.textContent = 'REBOOT';
-    rebootBtn.onclick = rebootPi;
-    actions.appendChild(rebootBtn);
-  }
-
-  if (!actions.querySelector('button[title="Shutdown Raspberry Pi"]')) {
-    const shutdownBtn = document.createElement('button');
-    shutdownBtn.className = 'action-btn';
-    shutdownBtn.title = 'Shutdown Raspberry Pi';
-    shutdownBtn.textContent = 'SHUTDOWN';
-    shutdownBtn.onclick = shutdownPi;
-    actions.appendChild(shutdownBtn);
-  }
+  const connectButton = document.getElementById('piConnect');
+  const statusButton = document.getElementById('piStatusCheck');
+  if (connectButton) connectButton.addEventListener('click', connectPi);
+  if (statusButton) statusButton.addEventListener('click', () => performDeviceStatusCheck(true));
 }
 
 
 // ===== DESKTOP CARD HELPERS =====
 
 // Desktop target configuration
-const DESKTOP_LOCAL_BASE = 'http://192.168.1.57';
-const DESKTOP_TAILSCALE_BASE = 'http://100.65.47.59';
+const DESKTOP_LOCAL_BASE = '';
+const DESKTOP_TAILSCALE_BASE = '';
 
 async function fetchWithTimeout(url, options = {}, timeout = 5000) {
   const controller = new AbortController();
@@ -506,36 +642,9 @@ async function fetchWithTimeout(url, options = {}, timeout = 5000) {
   }
 }
 
-// Simplified desktop status check using the desktop file logic (simulated)
+// Desktop status is deferred until a backend contract is available.
 async function checkDesktopStatus(isManual = false) {
-  return new Promise(resolve => {
-    const dot = document.getElementById('desktopStatusDot');
-    const text = document.getElementById('desktopStatusText');
-    const checked = document.getElementById('desktop-last-checked');
-
-    if (dot) dot.className = 'status-indicator checking';
-    if (text) text.textContent = 'Checking...';
-
-    appendDesktopTerminal('Running desktop status check...');
-
-    setTimeout(() => {
-      const online = Math.random() > 0.3;
-
-      if (online) {
-        if (dot) dot.className = 'status-indicator online-tailscale';
-        if (text) text.textContent = 'Online';
-        appendDesktopTerminal('Desktop online');
-        if (checked) checked.textContent = new Date().toLocaleTimeString();
-        resolve({ status: 'ONLINE', via: 'simulated' });
-      } else {
-        if (dot) dot.className = 'status-indicator offline';
-        if (text) text.textContent = 'Offline';
-        appendDesktopTerminal('Desktop offline');
-        if (checked) checked.textContent = new Date().toLocaleTimeString();
-        resolve({ status: 'OFFLINE' });
-      }
-    }, 1000);
-  });
+  return { status: 'UNCONFIGURED' };
 }
 
 async function openDesktop() {
@@ -568,7 +677,7 @@ async function openDesktop() {
   // 2) Pivot through Pi
   appendDesktopTerminal('Requesting Raspberry Pi to pivot to Desktop...');
   try {
-    const resPi = await fetchWithTimeout(`${BASE_URL}/connect`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target: '192.168.1.57', action: 'desktop' }) }, 10000);
+    const resPi = await fetchWithTimeout(`${BASE_URL}/connect`, { method: 'POST' }, 10000);
     if (resPi && resPi.ok) {
       const data = await resPi.json().catch(() => null);
       if (data && data.url) {
@@ -588,7 +697,7 @@ async function openDesktop() {
   }
 
   // 3) Try local direct
-  appendDesktopTerminal('Trying local connection to 192.168.1.57...');
+  appendDesktopTerminal('Trying local connection...');
   try {
     const resL = await fetchWithTimeout(`${DESKTOP_LOCAL_BASE}/desktop`, {}, 5000);
     if (resL && resL.ok) {
@@ -612,7 +721,7 @@ async function openDesktop() {
   }
 
   // Final fallback: copy SSH
-  const cmd = `ssh Balloutdj@192.168.1.57`;
+  const cmd = 'Desktop connection is not configured.';
   try { await navigator.clipboard.writeText(cmd); addActivityLog('Desktop - SSH command copied'); appendDesktopTerminal('SSH command copied to clipboard.'); alert(`SSH command copied to clipboard:\n${cmd}`); return; } catch (e) { addActivityLog('Desktop - SSH command shown'); appendDesktopTerminal('SSH command: ' + cmd); alert(`Use this SSH command: ${cmd}`); return; }
 }
 
@@ -626,12 +735,16 @@ function addDesktopLog(message) {
 
     const time = new Date().toLocaleTimeString();
 
-    terminal.innerHTML += `
-        <div class="terminal-line">
-            <span class="term-time">${time}</span>
-            <span class="term-text">${message}</span>
-        </div>
-    `;
+    const line = document.createElement('div');
+    line.className = 'terminal-line';
+    const timeElement = document.createElement('span');
+    timeElement.className = 'term-time';
+    timeElement.textContent = time;
+    const textElement = document.createElement('span');
+    textElement.className = 'term-text';
+    textElement.textContent = message;
+    line.append(timeElement, textElement);
+    terminal.appendChild(line);
 
     terminal.scrollTop = terminal.scrollHeight;
 }
@@ -643,8 +756,7 @@ function appendDesktopTerminal(message){
 
 // Desktop SSH connect
 function connectDesktop() {
-    addDesktopLog('Opening SSH session...');
-    window.location.href = 'ssh://Balloutdj@1091.168.1.57';
+    addDesktopLog('Desktop connection is not configured.');
 }
 
 function wireDesktopCard(){
@@ -654,54 +766,29 @@ function wireDesktopCard(){
   const connectBtn = card.querySelector('button[title="Open SSH session to Desktop"]');
   const checkBtn = card.querySelector('button[title="Check Desktop system status"]');
 
-  if(connectBtn){
-    connectBtn.addEventListener('click', (e) => {
-      connectDesktop();
-    });
-  }
-
-  if(checkBtn){
-    checkBtn.addEventListener('click', async (e) => {
-      appendDesktopTerminal('Checking Desktop status (tailscale → local)...');
-      try{
-        const res = await checkDesktopStatus(true);
-        const nowStr = new Date().toLocaleString();
-        const lastCheckedEl = document.getElementById('desktop-last-checked');
-        if(lastCheckedEl) lastCheckedEl.textContent = nowStr;
-
-        const statusTextEl = document.getElementById('desktopStatusText');
-        const statusDot = document.getElementById('desktopStatusDot');
-        if(res && res.status === 'ONLINE'){
-          if(statusTextEl) statusTextEl.textContent = 'ONLINE';
-          if(statusDot) statusDot.className = 'status-indicator online';
-        } else {
-          if(statusTextEl) statusTextEl.textContent = 'OFFLINE';
-          if(statusDot) statusDot.className = 'status-indicator offline';
-        }
-
-        appendDesktopTerminal('Status: ' + ((res && res.status) ? res.status : 'UNKNOWN') + (res && res.via ? ' via '+res.via : ''));
-      }catch(err){
-        appendDesktopTerminal('Status check error: ' + (err && err.message ? err.message : String(err)));
-      }
-    });
-  }
+  if (connectBtn) connectBtn.disabled = true;
+  if (checkBtn) checkBtn.disabled = true;
 }
 
 
 // ===== HOME ASSISTANT HELPERS =====
 
-// Backend API base (use Pi address so browser requests reach the Pi backend)
-const HA_API_BASE = 'http://192.168.1.35:3000';
+// Browser API calls stay on the Express-served dashboard origin.
+const HA_API_BASE = '';
 
 async function fetchHomeAssistantStatus() {
+  const connEl = document.getElementById('haConnection');
+  const updatedEl = document.getElementById('haLastUpdated');
+  const haDot = document.getElementById('haStatusDot');
+  if (connEl) connEl.textContent = 'Checking…';
+  if (haDot) haDot.className = 'status-indicator checking';
   try {
     const res = await fetch(`${HA_API_BASE}/api/homeassistant/status`);
-    if (!res.ok) return;
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => null);
+      throw new Error(errorData?.error?.message || 'Home Assistant status check failed');
+    }
     const data = await res.json();
-
-    const connEl = document.getElementById('haConnection');
-    const updatedEl = document.getElementById('haLastUpdated');
-    const haDot = document.getElementById('haStatusDot');
 
     // Support both new structured response and older simple-mock response
     const devices = (data && data.devices) ? data.devices : {};
@@ -750,12 +837,15 @@ async function fetchHomeAssistantStatus() {
 
   } catch (e) {
     console.warn('Failed to fetch Home Assistant status', e);
-    // set offline indicators
-    const haDot = document.getElementById('haStatusDot'); if (haDot) haDot.className = 'status-indicator offline';
+    if (connEl) connEl.textContent = e.message || 'Unavailable';
+    if (updatedEl) updatedEl.textContent = new Date().toLocaleString();
+    if (haDot) haDot.className = 'status-indicator offline';
   }
 }
 
 async function toggleHomeAssistantPlug(device, action) {
+  const button = document.getElementById(`ha${device === 'pi' ? 'Pi' : device === 'desktop' ? 'Desktop' : 'Lamp'}${action === 'on' ? 'On' : 'Off'}`);
+  if (button) button.disabled = true;
   try {
     const res = await fetch(`${HA_API_BASE}/api/homeassistant/${device}/${action}`, { method: 'POST' });
     if (!res.ok) throw new Error('Request failed');
@@ -771,9 +861,14 @@ async function toggleHomeAssistantPlug(device, action) {
       if (lEl) lEl.textContent = data.power ? data.power.toUpperCase() : (action === 'on' ? 'ON' : 'OFF');
     }
     addActivityLog(`Home Assistant - ${device} -> ${action}`);
+    await fetchHomeAssistantStatus();
   } catch (e) {
     console.error(e);
-    alert('Failed to toggle device');
+    addActivityLog(`Home Assistant - ${device} update failed`);
+    const connEl = document.getElementById('haConnection');
+    if (connEl) connEl.textContent = 'Device update failed';
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 
@@ -818,6 +913,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupHomeLink();
   attachPiActionButtons();
   wireDesktopCard();
-  autoCheckPiStatus();
+  autoCheckDeviceStatus();
   setupHomeAssistantSection();
 });

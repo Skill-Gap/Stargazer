@@ -122,6 +122,10 @@
                     <h3>Raspberry Pi</h3>
                     <p class="device-type">IoT & Edge Computing</p>
                   </div>
+                  <div class="device-status-compact" role="status" aria-live="polite">
+                    <span class="status-indicator checking" id="piHaStatusDot"></span>
+                    <span class="status-text" id="piHaStatusText">Checking…</span>
+                  </div>
                 </div>
                 <div class="device-info">
                   <p class="device-ip">Managed through Stargazer gateway · Last checked: <span id="pi-last-checked">—</span></p>
@@ -155,8 +159,8 @@
                     <p class="device-type">Primary Workstation</p>
                   </div>
                   <div class="device-status-compact">
-                    <span class="status-indicator offline" id="desktopStatusDot"></span>
-                    <div class="status-text" id="desktopStatusText">Not configured</div>
+                    <span class="status-indicator checking" id="desktopStatusDot"></span>
+                    <div class="status-text" id="desktopStatusText">Checking…</div>
                   </div>
                 </div>
                 <div class="device-info">
@@ -179,27 +183,45 @@
                 </div>
               </div>
 
-              <!-- Laptop -->
-              <div class="device-card" id="laptopCard">
+              <!-- Lamp -->
+              <div class="device-card" id="lampCard">
                 <div class="device-header">
                   <div>
-                    <h3>Laptop</h3>
-                    <p class="device-type">Mobile Development</p>
+                    <h3>Lamp</h3>
+                    <p class="device-type">Smart Lighting</p>
                   </div>
                   <div class="device-status-compact" role="status" aria-live="polite">
-                    <span class="status-indicator offline" id="laptopStatusDot"></span>
-                    <span class="status-text" id="laptopStatusText">Not configured</span>
+                    <span class="status-indicator checking" id="lampStatusDot"></span>
+                    <span class="status-text" id="lampStatusText">Checking…</span>
                   </div>
                 </div>
                 <div class="device-info">
-                  <p class="device-ip">Connection: <span id="laptop-conn">Not configured</span></p>
-                  <p class="device-ip">Last checked: <span id="laptop-last-checked">—</span></p>
+                  <p class="device-ip">Home Assistant entity: <span id="lampEntityId">—</span></p>
+                  <p class="device-ip">Last updated: <span id="lampSummaryLastUpdated">—</span></p>
                 </div>
                 <div class="device-actions">
-                  <button class="action-btn" type="button" disabled title="Laptop connection is not configured">CONNECT</button>
-                  <button class="action-btn" type="button" disabled title="Laptop desktop is not configured">VIEW DESKTOP</button>
-                  <button class="action-btn" type="button" disabled title="Laptop file sharing is not configured">OPEN SHARE</button>
-                  <button class="action-btn" type="button" disabled title="Laptop logs are not configured">LOGS</button>
+                  <button class="action-btn" type="button" disabled title="Use the Home Assistant panel for controls">STATUS SUMMARY</button>
+                </div>
+              </div>
+
+              <!-- TV -->
+              <div class="device-card" id="tvCard">
+                <div class="device-header">
+                  <div>
+                    <h3>TV</h3>
+                    <p class="device-type">Media Player</p>
+                  </div>
+                  <div class="device-status-compact" role="status" aria-live="polite">
+                    <span class="status-indicator checking" id="tvStatusDot"></span>
+                    <span class="status-text" id="tvStatusText">Checking…</span>
+                  </div>
+                </div>
+                <div class="device-info">
+                  <p class="device-ip">Home Assistant entity: <span id="tvEntityId">—</span></p>
+                  <p class="device-ip">Last updated: <span id="tvSummaryLastUpdated">—</span></p>
+                </div>
+                <div class="device-actions">
+                  <button class="action-btn" type="button" disabled title="Use the Home Assistant panel for controls">STATUS SUMMARY</button>
                 </div>
               </div>
             </div>
@@ -319,39 +341,52 @@
                 <p>Last Updated: <span id="haLastUpdated">—</span></p>
               </div>
 
-              <!-- Card 2: Raspberry Pi Smart Plug -->
-              <div class="card">
-                <h3>Raspberry Pi Smart Plug <span style="margin-left:8px"><span id="haPiDot" class="status-indicator"></span></span></h3>
-                <p>Name: <span id="haPiName">—</span></p>
-                <p>Power State: <span id="haPiPower">Unknown</span></p>
-                <p>Last Updated: <span id="haPiLastUpdated">—</span></p>
-                <div style="margin-top:8px">
-                  <button id="haPiOn" class="action-btn">Turn On</button>
-                  <button id="haPiOff" class="action-btn">Turn Off</button>
-                </div>
-              </div>
-
-              <!-- Card 3: Desktop Smart Plug -->
-              <div class="card">
-                <h3>Desktop Smart Plug <span style="margin-left:8px"><span id="haDesktopDot" class="status-indicator"></span></span></h3>
-                <p>Name: <span id="haDesktopName">—</span></p>
-                <p>Power State: <span id="haDesktopPower">Unknown</span></p>
-                <p>Last Updated: <span id="haDesktopLastUpdated">—</span></p>
-                <div style="margin-top:8px">
-                  <button id="haDesktopOn" class="action-btn">Turn On</button>
-                  <button id="haDesktopOff" class="action-btn">Turn Off</button>
-                </div>
-              </div>
-
-              <!-- Card 4: Lamp -->
-              <div class="card">
-                <h3>Lamp <span style="margin-left:8px"><span id="haLampDot" class="status-indicator"></span></span></h3>
+              <!-- Dashboard device 1: Lamp -->
+              <div class="card ha-device-card">
+                <h3>Lamp <span style="margin-left:8px"><span id="haLampDot" class="status-indicator" aria-hidden="true"></span></span></h3>
                 <p>Name: <span id="haLampName">—</span></p>
-                <p>Power State: <span id="haLampPower">Unknown</span></p>
+                <p>Power State: <span id="haLampPower" role="status" aria-live="polite">Unknown</span></p>
                 <p>Last Updated: <span id="haLampLastUpdated">—</span></p>
-                <div style="margin-top:8px">
-                  <button id="haLampOn" class="action-btn">Turn On</button>
-                  <button id="haLampOff" class="action-btn">Turn Off</button>
+                <div class="ha-device-actions">
+                  <button id="haLampOn" class="action-btn" type="button" disabled>Turn On</button>
+                  <button id="haLampOff" class="action-btn" type="button" disabled>Turn Off</button>
+                </div>
+              </div>
+
+              <!-- Dashboard device 2: Desktop -->
+              <div class="card ha-device-card">
+                <h3>Desktop <span style="margin-left:8px"><span id="haDesktopDot" class="status-indicator" aria-hidden="true"></span></span></h3>
+                <p>Name: <span id="haDesktopName">—</span></p>
+                <p>Power State: <span id="haDesktopPower" role="status" aria-live="polite">Unknown</span></p>
+                <p>Last Updated: <span id="haDesktopLastUpdated">—</span></p>
+                <div class="ha-device-actions">
+                  <button id="haDesktopOn" class="action-btn" type="button" disabled>Turn On</button>
+                  <button id="haDesktopOff" class="action-btn" type="button" disabled>Turn Off</button>
+                </div>
+              </div>
+
+              <!-- Dashboard device 3: Raspberry Pi (status only) -->
+              <div class="card ha-device-card">
+                <h3>Raspberry Pi <span style="margin-left:8px"><span id="haPiDot" class="status-indicator" aria-hidden="true"></span></span></h3>
+                <p>Name: <span id="haPiName">—</span></p>
+                <p>Power State: <span id="haPiPower" role="status" aria-live="polite">Unknown</span></p>
+                <p>Last Updated: <span id="haPiLastUpdated">—</span></p>
+                <div class="ha-device-actions" aria-describedby="haPiControlReason">
+                  <button id="haPiOn" class="action-btn" type="button" disabled>Turn On</button>
+                  <button id="haPiOff" class="action-btn" type="button" disabled>Turn Off</button>
+                </div>
+                <p id="haPiControlReason" class="control-note">Power control is disabled. Raspberry Pi is status-only.</p>
+              </div>
+
+              <!-- Dashboard device 4: TV -->
+              <div class="card ha-device-card">
+                <h3>TV <span style="margin-left:8px"><span id="haTvDot" class="status-indicator" aria-hidden="true"></span></span></h3>
+                <p>Name: <span id="haTvName">—</span></p>
+                <p>Power State: <span id="haTvPower" role="status" aria-live="polite">Unknown</span></p>
+                <p>Last Updated: <span id="haTvLastUpdated">—</span></p>
+                <div class="ha-device-actions">
+                  <button id="haTvOn" class="action-btn" type="button" disabled>Turn On</button>
+                  <button id="haTvOff" class="action-btn" type="button" disabled>Turn Off</button>
                 </div>
               </div>
             </div>

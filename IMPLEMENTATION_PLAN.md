@@ -65,9 +65,19 @@ The outward-facing portfolio and inward-facing command center remain separate pr
 
 ## Sprint 4 — Home Assistant completion
 
-1. Validate the configured Home Assistant connection and entity mapping.
-2. Add authenticated access and origin protection for state-changing operations.
-3. Improve device refresh, confirmation, audit activity, and unavailable-state behavior.
+1. Limit the Home Assistant dashboard to four devices: Lamp, Desktop, Raspberry Pi, and TV.
+2. Use the confirmed mappings `switch.ihome_ww117_smart_plug_socket_1`,
+   `switch.desktop_socket_1`, `switch.pi_socket_1`, and
+   `media_player.tv_un75nu6900`.
+3. Keep Raspberry Pi power status read-only. No Pi power request may reach Home
+   Assistant; telemetry remains independent of plug availability.
+4. Support mocked Lamp and Desktop controls through the Home Assistant switch
+   service domain and mocked TV controls through the media-player service domain.
+5. Ignore power-on-behavior selectors, the TV remote entity, Laptop, and all
+   other Home Assistant devices in dashboard rendering and counts.
+6. Improve device refresh, confirmation, audit activity, and unavailable-state behavior.
+7. Add authenticated gateway access and origin protection before authorizing
+   live state-changing operations.
 
 ## Sprint 5 — 3D printing and build catalog
 

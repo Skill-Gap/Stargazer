@@ -28,7 +28,7 @@ Configuration:
 - `DESKTOP_TAILSCALE_HOST` and `DESKTOP_LOCAL_HOST`: optional Desktop probe targets, tried in that order.
 - `LAPTOP_TAILSCALE_HOST` and `LAPTOP_LOCAL_HOST`: optional Laptop probe targets, tried in that order.
 - `HA_URL` and `HA_TOKEN`: both required for Home Assistant endpoints.
-- `PI_PLUG_ENTITY`, `DESKTOP_PLUG_ENTITY`, `LAMP_ENTITY`: optional entity overrides.
+- `LAMP_ENTITY`, `DESKTOP_PLUG_ENTITY`, `PI_PLUG_ENTITY`, `TV_ENTITY`: optional overrides for the four dashboard Home Assistant entities. Pi is always status-only.
 - `ALLOWED_ORIGINS`: optional comma-separated CORS allowlist for a separately hosted frontend. Same-origin operation does not require CORS.
 - `PI_TAILSCALE_IP` and `PI_LOCAL_IP`: optional overrides for legacy `GET /status/pi` only.
 
@@ -39,8 +39,10 @@ Browser-facing endpoints:
 - `GET /api/devices/status`
 - `POST /api/pi/connect`
 - `GET /api/homeassistant/status`
-- `GET /api/homeassistant/{pi|desktop|lamp}`
-- `POST /api/homeassistant/{pi|desktop|lamp}/{on|off}`
+- `GET /api/homeassistant/{lamp|desktop|pi|tv}`
+- `POST /api/homeassistant/{lamp|desktop|tv}/{on|off}`
+
+`GET /api/homeassistant/status` returns exactly the Lamp, Desktop, Raspberry Pi, and TV entity states. Lamp and Desktop controls use Home Assistant switch services; TV controls use media-player services. Raspberry Pi power control is deliberately unavailable: requests to `POST /api/homeassistant/pi/{on|off}` return HTTP 405 with `POWER_CONTROL_DISABLED` and never contact Home Assistant.
 
 Compatibility endpoints `POST /connect/pi` and `GET /status/pi` remain available during migration.
 

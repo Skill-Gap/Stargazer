@@ -706,6 +706,17 @@ body {
   padding: 20px;
 }
 
+.ha-device-actions {
+  margin-top: 8px;
+}
+
+.control-note {
+  margin-top: 10px;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
 .intro-text {
   font-size: 1.1rem;
   line-height: 1.6;
@@ -1248,7 +1259,6 @@ a:focus-visible {
     width: 100%;
   }
 }
-
 
 
 

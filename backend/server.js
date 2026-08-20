@@ -42,10 +42,11 @@ function createApp(options = {}) {
   const piApiUrl = (env.PI_API_URL || '').replace(/\/$/, '');
   const haUrl = (env.HA_URL || '').replace(/\/$/, '');
   const haToken = env.HA_TOKEN;
-  const entities = {
-    pi: env.PI_PLUG_ENTITY || 'switch.pi_socket_1',
-    desktop: env.DESKTOP_PLUG_ENTITY || 'switch.desktop_socket_1',
-    lamp: env.LAMP_ENTITY || 'switch.ihome_ww117_smart_plug_socket_1'
+  const haDevices = {
+    lamp: { entityId: env.LAMP_ENTITY || 'switch.ihome_ww117_smart_plug_socket_1', serviceDomain: 'switch' },
+    desktop: { entityId: env.DESKTOP_PLUG_ENTITY || 'switch.desktop_socket_1', serviceDomain: 'switch' },
+    pi: { entityId: env.PI_PLUG_ENTITY || 'switch.pi_socket_1', serviceDomain: null },
+    tv: { entityId: env.TV_ENTITY || 'media_player.tv_un75nu6900', serviceDomain: 'media_player' }
   };
 
   const app = express();
@@ -161,7 +162,14 @@ function createApp(options = {}) {
     return (await haRequest(`/api/states/${encodeURIComponent(entityId)}`)).json();
   }
   function publicEntity(entityId, state) {
-    return { entity_id: entityId, state: state.state, friendly_name: (state.attributes && state.attributes.friendly_name) || null, last_updated: state.last_updated };
+    const currentState = state && typeof state.state === 'string' ? state.state : 'unavailable';
+    return {
+      entity_id: entityId,
+      state: currentState,
+      friendly_name: (state && state.attributes && state.attributes.friendly_name) || null,
+      available: currentState !== 'unavailable' && currentState !== 'unknown',
+      last_updated: (state && state.last_updated) || null
+    };
   }
   function haFailure(res, error, message) {
     const timedOut = error && error.name === 'AbortError';
@@ -174,9 +182,9 @@ function createApp(options = {}) {
     try {
       await haRequest('/api/');
       const devices = {};
-      for (const [device, entityId] of Object.entries(entities)) {
-        try { devices[device] = publicEntity(entityId, await getEntityState(entityId)); }
-        catch (error) { devices[device] = { entity_id: entityId, state: 'unavailable' }; }
+      for (const [device, definition] of Object.entries(haDevices)) {
+        try { devices[device] = publicEntity(definition.entityId, await getEntityState(definition.entityId)); }
+        catch (error) { devices[device] = publicEntity(definition.entityId, null); }
       }
       return res.json({ reachable: true, last_updated: now().toISOString(), devices });
     } catch (error) {
@@ -184,17 +192,19 @@ function createApp(options = {}) {
     }
   });
 
-  for (const [device, entityId] of Object.entries(entities)) {
+  for (const [device, definition] of Object.entries(haDevices)) {
+    const { entityId, serviceDomain } = definition;
     app.get(`/api/homeassistant/${device}`, async (req, res) => {
       if (!haConfigured(res)) return;
       try { return res.json(publicEntity(entityId, await getEntityState(entityId))); }
       catch (error) { return haFailure(res, error, 'Failed to get Home Assistant device state.'); }
     });
+    if (!serviceDomain) continue;
     for (const action of ['on', 'off']) {
       app.post(`/api/homeassistant/${device}/${action}`, async (req, res) => {
         if (!haConfigured(res)) return;
         try {
-          await haRequest(`/api/services/switch/turn_${action}`, { method: 'POST', body: JSON.stringify({ entity_id: entityId }) });
+          await haRequest(`/api/services/${serviceDomain}/turn_${action}`, { method: 'POST', body: JSON.stringify({ entity_id: entityId }) });
           const state = await getEntityState(entityId);
           return res.json({ result: 'ok', entity_id: entityId, power: state.state });
         } catch (error) {
@@ -202,6 +212,9 @@ function createApp(options = {}) {
         }
       });
     }
+  }
+  for (const action of ['on', 'off']) {
+    app.post(`/api/homeassistant/pi/${action}`, (req, res) => jsonError(res, 405, 'POWER_CONTROL_DISABLED', 'Raspberry Pi power control is disabled.'));
   }
   return app;
 }

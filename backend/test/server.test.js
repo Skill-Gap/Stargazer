@@ -92,26 +92,73 @@ test('Home Assistant requires both URL and token', async () => {
   });
 });
 
-test('Home Assistant device state and controls preserve contracts', async () => {
+test('Home Assistant status returns exactly the four configured dashboard devices', async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
     calls.push({ url, method: options.method || 'GET', authorization: options.headers.Authorization, body: options.body });
-    if (url.includes('/api/services/')) return jsonResponse([]);
-    return jsonResponse({ state: 'on', attributes: { friendly_name: 'Pi plug' }, last_updated: 'today' });
+    if (url.endsWith('/api/')) return jsonResponse({ message: 'API running.' });
+    if (url.includes('pi_socket_1')) return jsonResponse({}, 404);
+    return jsonResponse({ state: 'on', attributes: { friendly_name: 'Dashboard device' }, last_updated: 'today' });
   };
   const env = { HA_URL: 'http://ha.local', HA_TOKEN: 'top-secret' };
   await withServer({ env, fetchImpl }, async (base) => {
-    const getResponse = await fetch(`${base}/api/homeassistant/pi`);
-    assert.equal(getResponse.status, 200);
-    assert.equal((await getResponse.json()).state, 'on');
-
-    const postResponse = await fetch(`${base}/api/homeassistant/pi/on`, { method: 'POST' });
-    assert.equal(postResponse.status, 200);
-    assert.equal((await postResponse.json()).power, 'on');
+    const response = await fetch(`${base}/api/homeassistant/status`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(Object.keys(body.devices), ['lamp', 'desktop', 'pi', 'tv']);
+    assert.deepEqual(Object.fromEntries(Object.entries(body.devices).map(([key, value]) => [key, value.entity_id])), {
+      lamp: 'switch.ihome_ww117_smart_plug_socket_1',
+      desktop: 'switch.desktop_socket_1',
+      pi: 'switch.pi_socket_1',
+      tv: 'media_player.tv_un75nu6900'
+    });
+    assert.equal(body.devices.pi.available, false);
+    assert.equal(body.devices.pi.state, 'unavailable');
+    assert.equal(body.devices.pi.friendly_name, null);
+    assert.equal(body.devices.pi.last_updated, null);
   });
-  assert.equal(calls[1].method, 'POST');
-  assert.equal(calls[1].body, JSON.stringify({ entity_id: 'switch.pi_socket_1' }));
   assert.ok(calls.every((call) => call.authorization === 'Bearer top-secret'));
+});
+
+test('Home Assistant per-device reads and controls use only frozen entity and service mappings', async () => {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, method: options.method || 'GET', body: options.body });
+    if (url.includes('/api/services/')) return jsonResponse([]);
+    return jsonResponse({ state: 'on', attributes: { friendly_name: 'Device' }, last_updated: 'today' });
+  };
+  await withServer({ env: { HA_URL: 'http://ha.local', HA_TOKEN: 'secret' }, fetchImpl }, async (base) => {
+    for (const device of ['lamp', 'desktop', 'pi', 'tv']) {
+      const response = await fetch(`${base}/api/homeassistant/${device}`);
+      assert.equal(response.status, 200);
+      assert.equal((await response.json()).available, true);
+    }
+    for (const [device, action] of [['lamp', 'on'], ['desktop', 'off'], ['tv', 'on']]) {
+      const response = await fetch(`${base}/api/homeassistant/${device}/${action}`, { method: 'POST' });
+      assert.equal(response.status, 200);
+    }
+  });
+  const posts = calls.filter((call) => call.method === 'POST');
+  assert.deepEqual(posts.map((call) => [call.url, JSON.parse(call.body).entity_id]), [
+    ['http://ha.local/api/services/switch/turn_on', 'switch.ihome_ww117_smart_plug_socket_1'],
+    ['http://ha.local/api/services/switch/turn_off', 'switch.desktop_socket_1'],
+    ['http://ha.local/api/services/media_player/turn_on', 'media_player.tv_un75nu6900']
+  ]);
+});
+
+test('Raspberry Pi power routes are disabled without contacting Home Assistant', async () => {
+  let calls = 0;
+  await withServer({
+    env: { HA_URL: 'http://ha.local', HA_TOKEN: 'secret' },
+    fetchImpl: async () => { calls += 1; return jsonResponse({}); }
+  }, async (base) => {
+    for (const action of ['on', 'off']) {
+      const response = await fetch(`${base}/api/homeassistant/pi/${action}`, { method: 'POST' });
+      assert.equal(response.status, 405);
+      assert.deepEqual(await response.json(), { error: { code: 'POWER_CONTROL_DISABLED', message: 'Raspberry Pi power control is disabled.' } });
+    }
+  });
+  assert.equal(calls, 0);
 });
 
 test('Home Assistant failures do not leak upstream details', async () => {

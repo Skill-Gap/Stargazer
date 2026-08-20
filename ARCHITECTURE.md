@@ -94,25 +94,37 @@ Launcher failure returns `500` with the standard `error` object. The existing `P
 
 ### Home Assistant
 
-`GET /api/homeassistant/status` retains the existing aggregate shape:
+`GET /api/homeassistant/status` is the dashboard's four-device Home Assistant
+aggregate. It returns only Lamp, Desktop, Raspberry Pi, and TV:
 
 ```json
 {
   "reachable": true,
   "last_updated": "2026-08-19T12:00:00.000Z",
   "devices": {
-    "pi": { "entity_id": "string", "state": "on", "friendly_name": "string", "last_updated": "string" },
+    "lamp": { "entity_id": "switch.ihome_ww117_smart_plug_socket_1", "state": "off", "friendly_name": "Lamp Socket 1", "last_updated": "string" },
     "desktop": { "entity_id": "string", "state": "off", "friendly_name": "string", "last_updated": "string" },
-    "lamp": { "entity_id": "string", "state": "on", "friendly_name": "string", "last_updated": "string" }
+    "pi": { "entity_id": "switch.pi_socket_1", "state": "unavailable", "friendly_name": "Pi Socket 1", "last_updated": "string" },
+    "tv": { "entity_id": "media_player.tv_un75nu6900", "state": "on", "friendly_name": "tv (UN75NU6900)", "last_updated": "string" }
   }
 }
 ```
 
-`POST /api/homeassistant/{pi|desktop|lamp}/{on|off}` returns:
+Power-on-behavior selectors, the TV remote entity, Laptop, and every other Home
+Assistant entity are outside the dashboard contract.
+
+`POST /api/homeassistant/{lamp|desktop|tv}/{on|off}` returns:
 
 ```json
 { "result": "ok", "entity_id": "string", "power": "on" }
 ```
+
+Lamp and Desktop use Home Assistant's `switch` service domain. TV uses the
+`media_player` service domain. Raspberry Pi power is status-only:
+`POST /api/homeassistant/pi/{on|off}` returns `405` with code
+`POWER_CONTROL_DISABLED` and must not make an upstream Home Assistant request.
+Pi host availability and system data continue to come from FastAPI telemetry,
+not from the Tuya plug state.
 
 Missing configuration uses `503`. Upstream failure uses `502`. Errors use `{ "error": { "code": "...", "message": "..." } }` and do not include tokens, internal exception text, or authorization headers.
 

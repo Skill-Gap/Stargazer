@@ -172,35 +172,14 @@ function updateDeviceDashboard(data) {
   const checkedAt = formatCheckedAt(data?.checked_at);
   const pi = devices.pi;
   const desktop = devices.desktop;
-  const laptop = devices.laptop;
-
-  setStatusIndicator(
-    document.getElementById('piStatusDot'),
-    document.getElementById('piStatusText'),
-    pi
-  );
-  setStatusIndicator(
-    document.getElementById('desktopStatusDot'),
-    document.getElementById('desktopStatusText'),
-    desktop
-  );
-  setStatusIndicator(
-    document.getElementById('laptopStatusDot'),
-    document.getElementById('laptopStatusText'),
-    laptop
-  );
 
   const piChecked = document.getElementById('pi-last-checked');
   const desktopChecked = document.getElementById('desktop-last-checked');
-  const laptopChecked = document.getElementById('laptop-last-checked');
   if (piChecked) piChecked.textContent = checkedAt;
   if (desktopChecked) desktopChecked.textContent = checkedAt;
-  if (laptopChecked) laptopChecked.textContent = checkedAt;
 
   const desktopConnection = document.getElementById('desktop-conn');
-  const laptopConnection = document.getElementById('laptop-conn');
   if (desktopConnection) desktopConnection.textContent = desktop?.configured ? (desktop.connection || 'Unavailable') : 'Not configured';
-  if (laptopConnection) laptopConnection.textContent = laptop?.configured ? (laptop.connection || 'Unavailable') : 'Not configured';
 
   const system = pi?.online ? pi.system : null;
   const stats = {
@@ -214,38 +193,13 @@ function updateDeviceDashboard(data) {
     if (element) element.textContent = value;
   });
 
-  const configured = Number(data?.summary?.configured) || 0;
-  const online = Number(data?.summary?.online) || 0;
-  const count = document.getElementById('systemsOnlineCount');
-  const dashboardStatus = document.getElementById('dashboardStatus');
-  const health = document.getElementById('systemsHealth');
-  if (count) count.textContent = `${online}/${configured}`;
-  if (dashboardStatus) dashboardStatus.textContent = `Devices: ${online}/${configured} online`;
-  if (health) {
-    health.textContent = configured === 0 ? '● Unconfigured' : online === configured ? '● Optimal' : '● Degraded';
-    health.className = `status-value ${configured > 0 && online === configured ? 'status-healthy' : ''}`.trim();
-  }
-
   const links = [...new Set(Object.values(devices).filter(device => device?.online && device.connection).map(device => device.connection))];
   const activeLinks = document.getElementById('activeLinks');
   if (activeLinks) activeLinks.textContent = links.length ? links.join(', ') : 'None';
 }
 
 function showDeviceStatusFailure(message) {
-  ['pi', 'desktop', 'laptop'].forEach(name => {
-    const prefix = name === 'pi' ? 'pi' : name;
-    const dot = document.getElementById(`${prefix}StatusDot`);
-    const text = document.getElementById(`${prefix}StatusText`);
-    if (dot) dot.className = 'status-indicator offline';
-    if (text) text.textContent = 'Status unavailable';
-  });
-  const dashboardStatus = document.getElementById('dashboardStatus');
-  const health = document.getElementById('systemsHealth');
-  const count = document.getElementById('systemsOnlineCount');
   const links = document.getElementById('activeLinks');
-  if (dashboardStatus) dashboardStatus.textContent = 'Devices: Status unavailable';
-  if (health) health.textContent = '● Unavailable';
-  if (count) count.textContent = '—/—';
   if (links) links.textContent = 'Unavailable';
   console.warn('Device status refresh failed', message);
 }
@@ -254,12 +208,6 @@ async function performDeviceStatusCheck(isManual = false) {
   const button = document.getElementById('piStatusCheck');
   if (isManual) {
     if (button) button.disabled = true;
-    ['pi', 'desktop', 'laptop'].forEach(name => {
-      const dot = document.getElementById(`${name}StatusDot`);
-      const text = document.getElementById(`${name}StatusText`);
-      if (dot) dot.className = 'status-indicator checking';
-      if (text) text.textContent = 'Checking…';
-    });
   }
   if (!deviceStatusRequest) {
     const sequence = ++deviceStatusSequence;
@@ -790,7 +738,6 @@ async function fetchHomeAssistantStatus() {
     }
     const data = await res.json();
 
-    // Support both new structured response and older simple-mock response
     const devices = (data && data.devices) ? data.devices : {};
 
     if (connEl && updatedEl) {
@@ -800,19 +747,24 @@ async function fetchHomeAssistantStatus() {
       if (haDot) haDot.className = reachable ? 'status-indicator online-tailscale' : 'status-indicator offline';
     }
 
-    // Helper to normalize device info whether it's a string (legacy) or object
     function normalizeDevice(info, entityId) {
-      if (!info) return { entity_id: entityId, state: 'unavailable', friendly_name: null, last_updated: null };
-      if (typeof info === 'string') {
-        // legacy: 'ONLINE' / 'OFFLINE'
-        return { entity_id: entityId, state: info.toLowerCase() === 'online' ? 'on' : 'off', friendly_name: null, last_updated: data.last_updated };
+      if (!info || typeof info !== 'object') {
+        return { entity_id: entityId, state: 'unavailable', available: false, friendly_name: null, last_updated: null };
       }
-      return { entity_id: info.entity_id || entityId, state: info.state || 'unavailable', friendly_name: info.friendly_name || null, last_updated: info.last_updated || null };
+      const state = String(info.state || 'unknown').toLowerCase();
+      return {
+        entity_id: info.entity_id || entityId,
+        state,
+        available: typeof info.available === 'boolean' ? info.available : !['unavailable', 'unknown'].includes(state),
+        friendly_name: info.friendly_name || null,
+        last_updated: info.last_updated || null
+      };
     }
 
     const piInfo = normalizeDevice(devices.pi, 'pi');
     const deskInfo = normalizeDevice(devices.desktop, 'desktop');
     const lampInfo = normalizeDevice(devices.lamp, 'lamp');
+    const tvInfo = normalizeDevice(devices.tv, 'tv');
 
     function applyInfo(info, targetIds) {
       const nameEl = document.getElementById(targetIds.name);
@@ -821,45 +773,105 @@ async function fetchHomeAssistantStatus() {
       const dotEl = document.getElementById(targetIds.dot);
 
       if (nameEl) nameEl.textContent = info.friendly_name || info.entity_id || '—';
-      if (powerEl) powerEl.textContent = (info.state || '').toString().toUpperCase();
+      const state = info.state || 'unknown';
+      if (powerEl) powerEl.textContent = state.toUpperCase();
       if (lastEl) lastEl.textContent = info.last_updated || '—';
 
       if (dotEl) {
-        const st = (info.state || '').toLowerCase();
-        if (st === 'unavailable' || st === 'unknown' || st === 'off') dotEl.className = 'status-indicator offline';
+        if (!info.available || state === 'unavailable') dotEl.className = 'status-indicator offline';
+        else if (state === 'unknown') dotEl.className = 'status-indicator unconfigured';
+        else if (state === 'off') dotEl.className = 'status-indicator checking';
         else dotEl.className = 'status-indicator online-tailscale';
       }
+
+      [targetIds.on, targetIds.off].forEach(id => {
+        const control = id ? document.getElementById(id) : null;
+        if (control) control.disabled = !info.available;
+      });
+    }
+
+    function applySummary(info, prefix) {
+      const dot = document.getElementById(`${prefix}StatusDot`);
+      const text = document.getElementById(`${prefix}StatusText`);
+      const entity = document.getElementById(`${prefix}EntityId`);
+      const last = document.getElementById(`${prefix}SummaryLastUpdated`);
+      const state = info.state || 'unknown';
+      if (dot) {
+        if (!info.available || state === 'unavailable') dot.className = 'status-indicator offline';
+        else if (state === 'unknown') dot.className = 'status-indicator unconfigured';
+        else if (state === 'off') dot.className = 'status-indicator checking';
+        else dot.className = 'status-indicator online-tailscale';
+      }
+      if (text) text.textContent = !info.available ? 'Unavailable' : state.toUpperCase();
+      if (entity) entity.textContent = info.entity_id || '—';
+      if (last) last.textContent = info.last_updated || '—';
     }
 
     applyInfo(piInfo, { name: 'haPiName', power: 'haPiPower', last: 'haPiLastUpdated', dot: 'haPiDot' });
-    applyInfo(deskInfo, { name: 'haDesktopName', power: 'haDesktopPower', last: 'haDesktopLastUpdated', dot: 'haDesktopDot' });
-    applyInfo(lampInfo, { name: 'haLampName', power: 'haLampPower', last: 'haLampLastUpdated', dot: 'haLampDot' });
+    applyInfo(deskInfo, { name: 'haDesktopName', power: 'haDesktopPower', last: 'haDesktopLastUpdated', dot: 'haDesktopDot', on: 'haDesktopOn', off: 'haDesktopOff' });
+    applyInfo(lampInfo, { name: 'haLampName', power: 'haLampPower', last: 'haLampLastUpdated', dot: 'haLampDot', on: 'haLampOn', off: 'haLampOff' });
+    applyInfo(tvInfo, { name: 'haTvName', power: 'haTvPower', last: 'haTvLastUpdated', dot: 'haTvDot', on: 'haTvOn', off: 'haTvOff' });
+    applySummary(lampInfo, 'lamp');
+    applySummary(deskInfo, 'desktop');
+    applySummary(piInfo, 'piHa');
+    applySummary(tvInfo, 'tv');
+
+    const fourDevices = [lampInfo, deskInfo, piInfo, tvInfo];
+    const availableCount = fourDevices.filter(device => device.available).length;
+    const count = document.getElementById('systemsOnlineCount');
+    const dashboardStatus = document.getElementById('dashboardStatus');
+    if (count) count.textContent = `${availableCount}/4`;
+    if (dashboardStatus) dashboardStatus.textContent = `Devices: ${availableCount}/4 available`;
+    const health = document.getElementById('systemsHealth');
+    if (health) {
+      health.textContent = availableCount === 4 ? '● Optimal' : '● Degraded';
+      health.className = `status-value ${availableCount === 4 ? 'status-healthy' : ''}`.trim();
+    }
 
   } catch (e) {
     console.warn('Failed to fetch Home Assistant status', e);
     if (connEl) connEl.textContent = e.message || 'Unavailable';
     if (updatedEl) updatedEl.textContent = new Date().toLocaleString();
     if (haDot) haDot.className = 'status-indicator offline';
+    ['Lamp', 'Desktop', 'Pi', 'Tv'].forEach(label => {
+      const state = document.getElementById(`ha${label}Power`);
+      const dot = document.getElementById(`ha${label}Dot`);
+      if (state) state.textContent = 'UNAVAILABLE';
+      if (dot) dot.className = 'status-indicator offline';
+    });
+    ['lamp', 'desktop', 'piHa', 'tv'].forEach(prefix => {
+      const dot = document.getElementById(`${prefix}StatusDot`);
+      const text = document.getElementById(`${prefix}StatusText`);
+      if (dot) dot.className = 'status-indicator offline';
+      if (text) text.textContent = 'Unavailable';
+    });
+    const count = document.getElementById('systemsOnlineCount');
+    const dashboardStatus = document.getElementById('dashboardStatus');
+    const health = document.getElementById('systemsHealth');
+    if (count) count.textContent = '0/4';
+    if (dashboardStatus) dashboardStatus.textContent = 'Devices: 0/4 available';
+    if (health) {
+      health.textContent = '● Unavailable';
+      health.className = 'status-value';
+    }
+    ['haLampOn', 'haLampOff', 'haDesktopOn', 'haDesktopOff', 'haTvOn', 'haTvOff'].forEach(id => {
+      const control = document.getElementById(id);
+      if (control) control.disabled = true;
+    });
   }
 }
 
 async function toggleHomeAssistantPlug(device, action) {
-  const button = document.getElementById(`ha${device === 'pi' ? 'Pi' : device === 'desktop' ? 'Desktop' : 'Lamp'}${action === 'on' ? 'On' : 'Off'}`);
+  if (!['lamp', 'desktop', 'tv'].includes(device)) return;
+  const labels = { lamp: 'Lamp', desktop: 'Desktop', tv: 'Tv' };
+  const button = document.getElementById(`ha${labels[device]}${action === 'on' ? 'On' : 'Off'}`);
   if (button) button.disabled = true;
   try {
     const res = await fetch(`${HA_API_BASE}/api/homeassistant/${device}/${action}`, { method: 'POST' });
     if (!res.ok) throw new Error('Request failed');
     const data = await res.json();
-    if (device === 'pi') {
-      const piEl = document.getElementById('haPiPower');
-      if (piEl) piEl.textContent = data.power ? data.power.toUpperCase() : (action === 'on' ? 'ON' : 'OFF');
-    } else if (device === 'desktop') {
-      const dEl = document.getElementById('haDesktopPower');
-      if (dEl) dEl.textContent = data.power ? data.power.toUpperCase() : (action === 'on' ? 'ON' : 'OFF');
-    } else if (device === 'lamp') {
-      const lEl = document.getElementById('haLampPower');
-      if (lEl) lEl.textContent = data.power ? data.power.toUpperCase() : (action === 'on' ? 'ON' : 'OFF');
-    }
+    const powerEl = document.getElementById(`ha${labels[device]}Power`);
+    if (powerEl) powerEl.textContent = data.power ? data.power.toUpperCase() : action.toUpperCase();
     addActivityLog(`Home Assistant - ${device} -> ${action}`);
     await fetchHomeAssistantStatus();
   } catch (e) {
@@ -867,25 +879,24 @@ async function toggleHomeAssistantPlug(device, action) {
     addActivityLog(`Home Assistant - ${device} update failed`);
     const connEl = document.getElementById('haConnection');
     if (connEl) connEl.textContent = 'Device update failed';
-  } finally {
     if (button) button.disabled = false;
   }
 }
 
 function setupHomeAssistantSection() {
-  const onPi = document.getElementById('haPiOn');
-  const offPi = document.getElementById('haPiOff');
   const onDesk = document.getElementById('haDesktopOn');
   const offDesk = document.getElementById('haDesktopOff');
   const onLamp = document.getElementById('haLampOn');
   const offLamp = document.getElementById('haLampOff');
+  const onTv = document.getElementById('haTvOn');
+  const offTv = document.getElementById('haTvOff');
 
-  if (onPi) onPi.addEventListener('click', () => toggleHomeAssistantPlug('pi', 'on'));
-  if (offPi) offPi.addEventListener('click', () => toggleHomeAssistantPlug('pi', 'off'));
   if (onDesk) onDesk.addEventListener('click', () => toggleHomeAssistantPlug('desktop', 'on'));
   if (offDesk) offDesk.addEventListener('click', () => toggleHomeAssistantPlug('desktop', 'off'));
   if (onLamp) onLamp.addEventListener('click', () => toggleHomeAssistantPlug('lamp', 'on'));
   if (offLamp) offLamp.addEventListener('click', () => toggleHomeAssistantPlug('lamp', 'off'));
+  if (onTv) onTv.addEventListener('click', () => toggleHomeAssistantPlug('tv', 'on'));
+  if (offTv) offTv.addEventListener('click', () => toggleHomeAssistantPlug('tv', 'off'));
 
   // When the section becomes active, refresh status
   document.querySelectorAll('.nav-item').forEach(item => {

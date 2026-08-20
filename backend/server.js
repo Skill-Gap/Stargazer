@@ -3,13 +3,40 @@ try { require('dotenv').config(); } catch (error) { /* dotenv is optional */ }
 const express = require('express');
 const cors = require('cors');
 const { execFile } = require('child_process');
+const fs = require('fs/promises');
 const path = require('path');
 
 const FRONTEND_ROOT = path.resolve(__dirname, '..');
 const DEFAULT_TIMEOUT_MS = 5000;
+const DEFAULT_JOURNAL_DATA_FILE = path.join(__dirname, 'data', 'journal-entries.json');
+const MAX_JOURNAL_ENTRIES = 1000;
 
 function jsonError(res, status, code, message) {
   return res.status(status).json({ error: { code, message } });
+}
+
+function validateJournalEntry(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const stringWithin = (field, max, allowEmpty = true) => (
+    typeof value[field] === 'string' && value[field].length <= max && (allowEmpty || value[field].trim().length > 0)
+  );
+  if (!stringWithin('id', 128, false)
+      || !stringWithin('title', 200)
+      || !stringWithin('mood', 50)
+      || !stringWithin('content', 12000)
+      || !stringWithin('createdAt', 64, false)
+      || Number.isNaN(Date.parse(value.createdAt))
+      || !Array.isArray(value.tags)
+      || value.tags.length > 20
+      || value.tags.some((tag) => typeof tag !== 'string' || tag.length > 50)) return null;
+  return {
+    id: value.id,
+    title: value.title,
+    mood: value.mood,
+    tags: [...value.tags],
+    content: value.content,
+    createdAt: value.createdAt
+  };
 }
 
 async function requestWithTimeout(fetchImpl, url, options, timeoutMs) {
@@ -37,6 +64,8 @@ function createApp(options = {}) {
   const ping = options.ping || defaultPing;
   const probe = options.probe || ping;
   const now = options.now || (() => new Date());
+  const journalDataFile = path.resolve(env.JOURNAL_DATA_FILE || DEFAULT_JOURNAL_DATA_FILE);
+  let journalWriteQueue = Promise.resolve();
   const configuredTimeout = Number.parseInt(env.UPSTREAM_TIMEOUT_MS, 10);
   const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : DEFAULT_TIMEOUT_MS;
   const piApiUrl = (env.PI_API_URL || '').replace(/\/$/, '');
@@ -63,6 +92,65 @@ function createApp(options = {}) {
   app.use('/assets', express.static(path.join(FRONTEND_ROOT, 'assets'), { dotfiles: 'deny', fallthrough: true, index: false }));
 
   app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+  async function loadJournalEntries() {
+    try {
+      const parsed = JSON.parse(await fs.readFile(journalDataFile, 'utf8'));
+      if (!parsed || !Array.isArray(parsed.entries)) throw new Error('Invalid journal data');
+      return parsed.entries;
+    } catch (error) {
+      if (error && error.code === 'ENOENT') return [];
+      throw error;
+    }
+  }
+
+  async function saveJournalEntries(entries) {
+    await fs.mkdir(path.dirname(journalDataFile), { recursive: true });
+    const temporaryFile = `${journalDataFile}.${process.pid}.${Date.now()}.tmp`;
+    try {
+      await fs.writeFile(temporaryFile, `${JSON.stringify({ entries }, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
+      await fs.rename(temporaryFile, journalDataFile);
+    } catch (error) {
+      await fs.rm(temporaryFile, { force: true }).catch(() => {});
+      throw error;
+    }
+  }
+
+  app.get('/api/journal/entries', async (req, res) => {
+    try {
+      return res.json({ entries: await loadJournalEntries() });
+    } catch (error) {
+      console.error('Journal entries could not be loaded');
+      return jsonError(res, 500, 'JOURNAL_LOAD_FAILED', 'Journal entries could not be loaded.');
+    }
+  });
+
+  app.post('/api/journal/entries', async (req, res) => {
+    const entry = validateJournalEntry(req.body);
+    if (!entry) return jsonError(res, 400, 'INVALID_JOURNAL_ENTRY', 'Journal entry is invalid.');
+    try {
+      const storedEntry = await (journalWriteQueue = journalWriteQueue.catch(() => {}).then(async () => {
+        const entries = await loadJournalEntries();
+        const existing = entries.find((candidate) => candidate && candidate.id === entry.id);
+        if (existing) return existing;
+        if (entries.length >= MAX_JOURNAL_ENTRIES) {
+          const error = new Error('Journal capacity reached');
+          error.code = 'JOURNAL_CAPACITY_REACHED';
+          throw error;
+        }
+        entries.push(entry);
+        await saveJournalEntries(entries);
+        return entry;
+      }));
+      return res.status(201).json(storedEntry);
+    } catch (error) {
+      if (error && error.code === 'JOURNAL_CAPACITY_REACHED') {
+        return jsonError(res, 409, 'JOURNAL_CAPACITY_REACHED', 'Journal entry limit has been reached.');
+      }
+      console.error('Journal entry could not be saved');
+      return jsonError(res, 500, 'JOURNAL_SAVE_FAILED', 'Journal entry could not be saved.');
+    }
+  });
 
   async function getPiSystem() {
     const upstream = await requestWithTimeout(fetchImpl, `${piApiUrl}/status`, {}, timeoutMs);
@@ -216,6 +304,12 @@ function createApp(options = {}) {
   for (const action of ['on', 'off']) {
     app.post(`/api/homeassistant/pi/${action}`, (req, res) => jsonError(res, 405, 'POWER_CONTROL_DISABLED', 'Raspberry Pi power control is disabled.'));
   }
+  app.use((error, req, res, next) => {
+    if (error && (error.type === 'entity.too.large' || error instanceof SyntaxError)) {
+      return jsonError(res, 400, 'INVALID_REQUEST_BODY', 'Request body must be valid JSON within the allowed size.');
+    }
+    return next(error);
+  });
   return app;
 }
 

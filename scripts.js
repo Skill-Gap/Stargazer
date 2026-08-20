@@ -129,6 +129,8 @@ let piStatusRequest = null;
 let deviceStatusRequest = null;
 let deviceStatusSequence = 0;
 let lastAppliedDeviceSequence = 0;
+let latestAggregateDesktop = null;
+let latestHomeAssistantDesktop = null;
 
 // Convert uptime seconds to human-readable format (e.g., "2h 30m" or "45m 20s")
 function formatUptime(seconds) {
@@ -147,10 +149,43 @@ function formatUptime(seconds) {
   }
 }
 
-function formatCheckedAt(value) {
+function formatApiTimestamp(value) {
   if (!value) return '—';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+}
+
+function updateOverviewDesktop() {
+  const aggregate = latestAggregateDesktop;
+  const homeAssistant = latestHomeAssistantDesktop;
+  const useAggregate = aggregate?.configured === true;
+  const useHomeAssistant = !useAggregate && homeAssistant?.available === true;
+  const connection = document.getElementById('desktop-conn');
+
+  if (connection) {
+    connection.textContent = useAggregate
+      ? (aggregate.connection || 'Unavailable')
+      : useHomeAssistant ? 'Home Assistant' : 'Not configured';
+  }
+
+  if (useAggregate) {
+    setStatusIndicator(
+      document.getElementById('desktopStatusDot'),
+      document.getElementById('desktopStatusText'),
+      aggregate
+    );
+  } else if (useHomeAssistant) {
+    const dot = document.getElementById('desktopStatusDot');
+    const text = document.getElementById('desktopStatusText');
+    if (dot) dot.className = homeAssistant.state === 'off' ? 'status-indicator checking' : 'status-indicator online-tailscale';
+    if (text) text.textContent = homeAssistant.state.toUpperCase();
+  } else {
+    setStatusIndicator(
+      document.getElementById('desktopStatusDot'),
+      document.getElementById('desktopStatusText'),
+      aggregate
+    );
+  }
 }
 
 function setStatusIndicator(dot, text, device) {
@@ -169,17 +204,28 @@ function setStatusIndicator(dot, text, device) {
 
 function updateDeviceDashboard(data) {
   const devices = data?.devices || {};
-  const checkedAt = formatCheckedAt(data?.checked_at);
+  const checkedAt = formatApiTimestamp(data?.checked_at);
   const pi = devices.pi;
   const desktop = devices.desktop;
+  const laptop = devices.laptop;
+  latestAggregateDesktop = desktop || null;
 
   const piChecked = document.getElementById('pi-last-checked');
   const desktopChecked = document.getElementById('desktop-last-checked');
+  const laptopChecked = document.getElementById('laptop-last-checked');
   if (piChecked) piChecked.textContent = checkedAt;
   if (desktopChecked) desktopChecked.textContent = checkedAt;
+  if (laptopChecked) laptopChecked.textContent = checkedAt;
 
-  const desktopConnection = document.getElementById('desktop-conn');
-  if (desktopConnection) desktopConnection.textContent = desktop?.configured ? (desktop.connection || 'Unavailable') : 'Not configured';
+  updateOverviewDesktop();
+
+  setStatusIndicator(
+    document.getElementById('laptopStatusDot'),
+    document.getElementById('laptopStatusText'),
+    laptop
+  );
+  const laptopConnection = document.getElementById('laptop-conn');
+  if (laptopConnection) laptopConnection.textContent = laptop?.configured ? (laptop.connection || 'Unavailable') : 'Not configured';
 
   const system = pi?.online ? pi.system : null;
   const stats = {
@@ -743,7 +789,7 @@ async function fetchHomeAssistantStatus() {
     if (connEl && updatedEl) {
       const reachable = (typeof data.reachable !== 'undefined') ? data.reachable : true;
       connEl.textContent = reachable ? 'Connected' : 'Unreachable';
-      updatedEl.textContent = data.last_updated || new Date().toLocaleString();
+      updatedEl.textContent = formatApiTimestamp(data.last_updated);
       if (haDot) haDot.className = reachable ? 'status-indicator online-tailscale' : 'status-indicator offline';
     }
 
@@ -765,6 +811,7 @@ async function fetchHomeAssistantStatus() {
     const deskInfo = normalizeDevice(devices.desktop, 'desktop');
     const lampInfo = normalizeDevice(devices.lamp, 'lamp');
     const tvInfo = normalizeDevice(devices.tv, 'tv');
+    latestHomeAssistantDesktop = deskInfo;
 
     function applyInfo(info, targetIds) {
       const nameEl = document.getElementById(targetIds.name);
@@ -775,7 +822,7 @@ async function fetchHomeAssistantStatus() {
       if (nameEl) nameEl.textContent = info.friendly_name || info.entity_id || '—';
       const state = info.state || 'unknown';
       if (powerEl) powerEl.textContent = state.toUpperCase();
-      if (lastEl) lastEl.textContent = info.last_updated || '—';
+      if (lastEl) lastEl.textContent = formatApiTimestamp(info.last_updated);
 
       if (dotEl) {
         if (!info.available || state === 'unavailable') dotEl.className = 'status-indicator offline';
@@ -804,17 +851,16 @@ async function fetchHomeAssistantStatus() {
       }
       if (text) text.textContent = !info.available ? 'Unavailable' : state.toUpperCase();
       if (entity) entity.textContent = info.entity_id || '—';
-      if (last) last.textContent = info.last_updated || '—';
+      if (last) last.textContent = formatApiTimestamp(info.last_updated);
     }
 
     applyInfo(piInfo, { name: 'haPiName', power: 'haPiPower', last: 'haPiLastUpdated', dot: 'haPiDot' });
     applyInfo(deskInfo, { name: 'haDesktopName', power: 'haDesktopPower', last: 'haDesktopLastUpdated', dot: 'haDesktopDot', on: 'haDesktopOn', off: 'haDesktopOff' });
     applyInfo(lampInfo, { name: 'haLampName', power: 'haLampPower', last: 'haLampLastUpdated', dot: 'haLampDot', on: 'haLampOn', off: 'haLampOff' });
     applyInfo(tvInfo, { name: 'haTvName', power: 'haTvPower', last: 'haTvLastUpdated', dot: 'haTvDot', on: 'haTvOn', off: 'haTvOff' });
-    applySummary(lampInfo, 'lamp');
     applySummary(deskInfo, 'desktop');
     applySummary(piInfo, 'piHa');
-    applySummary(tvInfo, 'tv');
+    updateOverviewDesktop();
 
     const fourDevices = [lampInfo, deskInfo, piInfo, tvInfo];
     const availableCount = fourDevices.filter(device => device.available).length;
@@ -831,7 +877,8 @@ async function fetchHomeAssistantStatus() {
   } catch (e) {
     console.warn('Failed to fetch Home Assistant status', e);
     if (connEl) connEl.textContent = e.message || 'Unavailable';
-    if (updatedEl) updatedEl.textContent = new Date().toLocaleString();
+    if (updatedEl) updatedEl.textContent = formatApiTimestamp(new Date().toISOString());
+    latestHomeAssistantDesktop = null;
     if (haDot) haDot.className = 'status-indicator offline';
     ['Lamp', 'Desktop', 'Pi', 'Tv'].forEach(label => {
       const state = document.getElementById(`ha${label}Power`);
@@ -839,12 +886,13 @@ async function fetchHomeAssistantStatus() {
       if (state) state.textContent = 'UNAVAILABLE';
       if (dot) dot.className = 'status-indicator offline';
     });
-    ['lamp', 'desktop', 'piHa', 'tv'].forEach(prefix => {
+    ['piHa'].forEach(prefix => {
       const dot = document.getElementById(`${prefix}StatusDot`);
       const text = document.getElementById(`${prefix}StatusText`);
       if (dot) dot.className = 'status-indicator offline';
       if (text) text.textContent = 'Unavailable';
     });
+    updateOverviewDesktop();
     const count = document.getElementById('systemsOnlineCount');
     const dashboardStatus = document.getElementById('dashboardStatus');
     const health = document.getElementById('systemsHealth');
@@ -914,6 +962,32 @@ function setupHomeAssistantSection() {
   setInterval(fetchHomeAssistantStatus, 15000);
 }
 
+function setupJournalFrame() {
+  const frame = document.getElementById('stargazerFrame');
+  if (!frame) return;
+
+  const resize = () => {
+    try {
+      const doc = frame.contentDocument;
+      if (!doc) return;
+      const height = Math.max(doc.body?.scrollHeight || 0, doc.documentElement?.scrollHeight || 0);
+      if (height) frame.style.height = `${height}px`;
+    } catch (error) {
+      console.warn('Journal frame could not be resized', error);
+    }
+  };
+
+  frame.addEventListener('load', () => {
+    resize();
+    const doc = frame.contentDocument;
+    if (doc && 'ResizeObserver' in window) {
+      const observer = new ResizeObserver(resize);
+      observer.observe(doc.documentElement);
+    }
+  });
+  window.addEventListener('resize', resize);
+}
+
 
 // ===== INITIALIZATION =====
 
@@ -926,4 +1000,5 @@ document.addEventListener('DOMContentLoaded', () => {
   wireDesktopCard();
   autoCheckDeviceStatus();
   setupHomeAssistantSection();
+  setupJournalFrame();
 });

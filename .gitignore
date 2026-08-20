@@ -20,6 +20,9 @@ __pycache__/
 dist/
 build/
 
+# Local application data
+backend/data/journal-entries.json
+
 # Logs
 logs/
 *.log

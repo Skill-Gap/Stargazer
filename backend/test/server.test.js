@@ -1,5 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
 const { createApp } = require('../server');
 
 async function withServer(options, run) {
@@ -14,6 +17,22 @@ function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 }
 
+async function withTempJournal(run) {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'stargazer-journal-'));
+  const journalDataFile = path.join(directory, 'nested', 'journal.json');
+  try { await run(journalDataFile); }
+  finally { await fs.rm(directory, { recursive: true, force: true }); }
+}
+
+const journalEntry = {
+  id: 'entry-1',
+  title: 'First night',
+  mood: 'calm',
+  tags: ['stars', 'home'],
+  content: 'The dashboard is working.',
+  createdAt: '2026-08-19T23:00:00.000Z'
+};
+
 test('health works and backend files are not served', async () => {
   await withServer({ env: {} }, async (base) => {
     const health = await fetch(`${base}/health`);
@@ -21,6 +40,73 @@ test('health works and backend files are not served', async () => {
     assert.deepEqual(await health.json(), { status: 'ok' });
     assert.equal((await fetch(`${base}/backend/server.js`)).status, 404);
     assert.equal((await fetch(`${base}/.env`)).status, 404);
+  });
+});
+
+test('journal starts empty and persists entries across server restarts', async () => {
+  await withTempJournal(async (journalDataFile) => {
+    const env = { JOURNAL_DATA_FILE: journalDataFile };
+    await withServer({ env }, async (base) => {
+      assert.deepEqual(await (await fetch(`${base}/api/journal/entries`)).json(), { entries: [] });
+      const saved = await fetch(`${base}/api/journal/entries`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(journalEntry)
+      });
+      assert.equal(saved.status, 201);
+      assert.deepEqual(await saved.json(), journalEntry);
+    });
+    await withServer({ env }, async (base) => {
+      assert.deepEqual(await (await fetch(`${base}/api/journal/entries`)).json(), { entries: [journalEntry] });
+    });
+    assert.deepEqual(JSON.parse(await fs.readFile(journalDataFile, 'utf8')), { entries: [journalEntry] });
+  });
+});
+
+test('journal retries are idempotent and preserve the originally stored entry', async () => {
+  await withTempJournal(async (journalDataFile) => {
+    await withServer({ env: { JOURNAL_DATA_FILE: journalDataFile } }, async (base) => {
+      for (const entry of [journalEntry, { ...journalEntry, title: 'Changed retry' }]) {
+        const response = await fetch(`${base}/api/journal/entries`, {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(entry)
+        });
+        assert.equal(response.status, 201);
+        assert.deepEqual(await response.json(), journalEntry);
+      }
+      assert.deepEqual(await (await fetch(`${base}/api/journal/entries`)).json(), { entries: [journalEntry] });
+    });
+  });
+});
+
+test('journal rejects malformed and oversized entries without creating data', async () => {
+  await withTempJournal(async (journalDataFile) => {
+    await withServer({ env: { JOURNAL_DATA_FILE: journalDataFile } }, async (base) => {
+      for (const entry of [{ ...journalEntry, id: '' }, { ...journalEntry, content: 'x'.repeat(12001) }, { ...journalEntry, tags: ['x'.repeat(51)] }]) {
+        const response = await fetch(`${base}/api/journal/entries`, {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(entry)
+        });
+        assert.equal(response.status, 400);
+        assert.deepEqual(await response.json(), { error: { code: 'INVALID_JOURNAL_ENTRY', message: 'Journal entry is invalid.' } });
+      }
+      assert.deepEqual(await (await fetch(`${base}/api/journal/entries`)).json(), { entries: [] });
+    });
+  });
+});
+
+test('journal load and save errors are sanitized', async () => {
+  await withTempJournal(async (journalDataFile) => {
+    await fs.mkdir(path.dirname(journalDataFile), { recursive: true });
+    await fs.writeFile(journalDataFile, '{private broken json');
+    await withServer({ env: { JOURNAL_DATA_FILE: journalDataFile } }, async (base) => {
+      const load = await fetch(`${base}/api/journal/entries`);
+      assert.equal(load.status, 500);
+      assert.deepEqual(await load.json(), { error: { code: 'JOURNAL_LOAD_FAILED', message: 'Journal entries could not be loaded.' } });
+      const save = await fetch(`${base}/api/journal/entries`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(journalEntry)
+      });
+      assert.equal(save.status, 500);
+      const body = await save.json();
+      assert.deepEqual(body, { error: { code: 'JOURNAL_SAVE_FAILED', message: 'Journal entry could not be saved.' } });
+      assert.doesNotMatch(JSON.stringify(body), /private|broken|journalDataFile/);
+    });
   });
 });
 

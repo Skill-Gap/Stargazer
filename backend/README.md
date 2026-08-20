@@ -24,6 +24,7 @@ Open `http://localhost:3000`. `PORT` changes the listening port.
 Configuration:
 
 - `PI_API_URL`: Pi agent origin, such as `http://pi-host:8000`. Required for `GET /api/pi/status`.
+- `JOURNAL_DATA_FILE`: optional journal JSON file path. Defaults to `backend/data/journal-entries.json`; relative overrides are resolved from the process working directory.
 - `UPSTREAM_TIMEOUT_MS`: Pi and Home Assistant timeout; defaults to 5000.
 - `DESKTOP_TAILSCALE_HOST` and `DESKTOP_LOCAL_HOST`: optional Desktop probe targets, tried in that order.
 - `LAPTOP_TAILSCALE_HOST` and `LAPTOP_LOCAL_HOST`: optional Laptop probe targets, tried in that order.
@@ -37,6 +38,8 @@ Browser-facing endpoints:
 - `GET /health`
 - `GET /api/pi/status`
 - `GET /api/devices/status`
+- `GET /api/journal/entries`
+- `POST /api/journal/entries`
 - `POST /api/pi/connect`
 - `GET /api/homeassistant/status`
 - `GET /api/homeassistant/{lamp|desktop|pi|tv}`
@@ -45,6 +48,8 @@ Browser-facing endpoints:
 `GET /api/homeassistant/status` returns exactly the Lamp, Desktop, Raspberry Pi, and TV entity states. Lamp and Desktop controls use Home Assistant switch services; TV controls use media-player services. Raspberry Pi power control is deliberately unavailable: requests to `POST /api/homeassistant/pi/{on|off}` return HTTP 405 with `POWER_CONTROL_DISABLED` and never contact Home Assistant.
 
 Compatibility endpoints `POST /connect/pi` and `GET /status/pi` remain available during migration.
+
+Journal entries are stored locally in `backend/data/journal-entries.json` by default. The directory and file are created on the first save, writes use an atomic replacement, and the data file is ignored by Git. `POST /api/journal/entries` accepts `id`, `title`, `mood`, `tags`, `content`, and `createdAt`; retrying an existing `id` returns the stored entry without adding a duplicate.
 
 `GET /api/devices/status` is the dashboard's read-only aggregate. Pi availability comes from FastAPI telemetry. Desktop and Laptop use environment-configured reachability probes with Tailscale-first/local-fallback behavior. Missing configuration is reported as `configured: false`; an unreachable configured device is reported offline. A failure for one device never fails the aggregate response. These status probes do not authorize or perform device actions.
 

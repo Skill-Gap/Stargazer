@@ -3,6 +3,7 @@ try { require('dotenv').config(); } catch (error) { /* dotenv is optional */ }
 const express = require('express');
 const cors = require('cors');
 const { execFile } = require('child_process');
+const { timingSafeEqual } = require('node:crypto');
 const fs = require('fs/promises');
 const path = require('path');
 
@@ -92,6 +93,60 @@ function createApp(options = {}) {
   app.use('/assets', express.static(path.join(FRONTEND_ROOT, 'assets'), { dotfiles: 'deny', fallthrough: true, index: false }));
 
   app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+  const chatModel = env.CHAT_MODEL?.trim();
+  const chatToken = Buffer.from(env.CHAT_TOKEN || '');
+  const chatTimeout = Number(env.CHAT_TIMEOUT_MS);
+  const chatTimeoutMs = Number.isInteger(chatTimeout) && chatTimeout > 0 && chatTimeout <= 300000
+    ? chatTimeout : 60000;
+
+  app.post('/api/conversation', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    if (!chatModel || chatToken.length < 32) {
+      return jsonError(res, 503, 'CHAT_NOT_CONFIGURED', 'Conversation is not configured.');
+    }
+    const suppliedToken = Buffer.from(req.get('authorization')?.match(/^Bearer (\S+)$/i)?.[1] || '');
+    if (suppliedToken.length !== chatToken.length || !timingSafeEqual(suppliedToken, chatToken)) {
+      return jsonError(res, 401, 'CHAT_UNAUTHORIZED', 'A valid conversation token is required.');
+    }
+
+    const messages = req.body?.messages;
+    if (!Array.isArray(messages) || messages.length < 1 || messages.length > 20
+        || messages.some((message, index) => message?.role !== (index % 2 ? 'assistant' : 'user')
+          || typeof message.content !== 'string' || !message.content.trim() || message.content.length > 4000)
+        || messages.at(-1).role !== 'user') {
+      return jsonError(res, 400, 'CHAT_INVALID_MESSAGES', 'Send alternating user and assistant messages ending with a user message.');
+    }
+
+    const signal = AbortSignal.timeout(chatTimeoutMs);
+    try {
+      const response = await fetchImpl('http://127.0.0.1:11434/api/chat', {
+        method: 'POST',
+        redirect: 'error',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: chatModel,
+          messages: messages.map(({ role, content }) => ({ role, content })),
+          stream: false,
+          options: { num_predict: 512 }
+        }),
+        signal
+      });
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new Error('Local model returned an error');
+      }
+      const reply = await response.json();
+      if (reply?.done !== true || reply.message?.role !== 'assistant'
+          || typeof reply.message.content !== 'string' || !reply.message.content.trim()) {
+        throw new Error('Local model returned an invalid reply');
+      }
+      return res.json({ message: { role: 'assistant', content: reply.message.content } });
+    } catch {
+      if (signal.aborted) return jsonError(res, 504, 'CHAT_TIMEOUT', 'The local model took too long to reply.');
+      return jsonError(res, 502, 'CHAT_PROVIDER_FAILED', 'The local model could not produce a reply.');
+    }
+  });
 
   async function loadJournalEntries() {
     try {

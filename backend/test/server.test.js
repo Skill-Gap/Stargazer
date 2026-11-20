@@ -43,6 +43,90 @@ test('health works and backend files are not served', async () => {
   });
 });
 
+const chatToken = 'test-only-conversation-token-0000';
+const chatEnv = { CHAT_MODEL: 'local-test-model', CHAT_TOKEN: chatToken };
+const chatMessages = [
+  { role: 'user', content: 'My name is Sam.' },
+  { role: 'assistant', content: 'Hi, Sam.' },
+  { role: 'user', content: 'What is my name?' }
+];
+
+function postConversation(base, messages = chatMessages, token = chatToken) {
+  return fetch(`${base}/api/conversation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ messages })
+  });
+}
+
+test('conversation forwards ordered text history to the local model and returns a normalized reply', async () => {
+  const message = { role: 'assistant', content: 'Sam.' };
+  const fetchImpl = async (url, options) => {
+    assert.equal(url, 'http://127.0.0.1:11434/api/chat');
+    assert.equal(options.redirect, 'error');
+    assert.equal(options.headers.Authorization, undefined);
+    assert.deepEqual(JSON.parse(options.body), {
+      model: chatEnv.CHAT_MODEL, messages: chatMessages, stream: false, options: { num_predict: 512 }
+    });
+    return jsonResponse({ done: true, message: { ...message, thinking: 'provider metadata' } });
+  };
+  await withServer({ env: chatEnv, fetchImpl }, async (base) => {
+    const response = await postConversation(base);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(await response.json(), { message });
+  });
+});
+
+test('conversation refuses unconfigured, unauthorized, and invalid requests without contacting the model', async () => {
+  let calls = 0;
+  const fetchImpl = async () => { calls += 1; };
+  await withServer({ env: {}, fetchImpl }, async (base) => {
+    assert.equal((await postConversation(base)).status, 503);
+  });
+  await withServer({ env: chatEnv, fetchImpl }, async (base) => {
+    assert.equal((await postConversation(base, chatMessages, 'wrong-token')).status, 401);
+    for (const messages of [[], [null], [{ role: 'system', content: 'hello' }], chatMessages.slice(0, 2)]) {
+      assert.equal((await postConversation(base, messages)).status, 400);
+    }
+  });
+  assert.equal(calls, 0);
+});
+
+test('conversation sanitizes provider failures and recovers on the next request', async () => {
+  let attempts = 0;
+  const fetchImpl = async () => {
+    attempts += 1;
+    if (attempts === 1) return jsonResponse({ error: 'private provider detail' }, 503);
+    if (attempts === 2) return jsonResponse({ done: true });
+    return jsonResponse({ done: true, message: { role: 'assistant', content: 'Sam.' } });
+  };
+  await withServer({ env: chatEnv, fetchImpl }, async (base) => {
+    for (let index = 0; index < 2; index += 1) {
+      const response = await postConversation(base);
+      assert.equal(response.status, 502);
+      assert.deepEqual(await response.json(), {
+        error: { code: 'CHAT_PROVIDER_FAILED', message: 'The local model could not produce a reply.' }
+      });
+    }
+    assert.equal((await postConversation(base)).status, 200);
+  });
+});
+
+test('conversation timeout covers reading the provider response body', async () => {
+  const fetchImpl = async (url, { signal }) => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('{'));
+      signal.addEventListener('abort', () => controller.error(signal.reason), { once: true });
+    }
+  }));
+  await withServer({ env: { ...chatEnv, CHAT_TIMEOUT_MS: '25' }, fetchImpl }, async (base) => {
+    const response = await postConversation(base);
+    assert.equal(response.status, 504);
+    assert.equal((await response.json()).error.code, 'CHAT_TIMEOUT');
+  });
+});
+
 test('journal starts empty and persists entries across server restarts', async () => {
   await withTempJournal(async (journalDataFile) => {
     const env = { JOURNAL_DATA_FILE: journalDataFile };

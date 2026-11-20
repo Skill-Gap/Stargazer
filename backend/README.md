@@ -85,3 +85,22 @@ npm test
 Tests inject network and launcher dependencies. They do not contact Home Assistant, ping private devices, launch SSH, or change device state.
 
 The FastAPI agent currently has no automated test suite. Its `/status` behavior still requires validation on the target Raspberry Pi because disk and host metrics depend on that environment.
+
+## Local conversation API
+
+`POST /api/conversation` is available when `CHAT_MODEL` names a locally installed
+Ollama model and `CHAT_TOKEN` is a random bearer token of at least 32 bytes.
+Ollama must listen on `127.0.0.1:11434` on the same host. Enable Ollama local-only
+mode (`OLLAMA_NO_CLOUD=1` in the Ollama service environment). Keep the token
+server-side or in a trusted API client. Use HTTPS if calling across a network.
+
+Send `Authorization: Bearer <token>` and JSON such as
+`{"messages":[{"role":"user","content":"Hello"}]}`. The response is
+`{"message":{"role":"assistant","content":"..."}}`. For follow-up turns, send
+the previous user and assistant messages in order, followed by the new user
+message. The server does not store the transcript. Requests allow up to 20
+messages, 4,000 characters per message, and 16 KiB of JSON overall.
+
+The route returns 503 when disabled, 401 for invalid credentials, 400 for invalid
+input, 502 for model failure, and 504 when the model exceeds the deadline.
+`CHAT_TIMEOUT_MS` defaults to 60,000 and accepts 1 to 300,000 milliseconds.
